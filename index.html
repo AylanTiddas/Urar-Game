@@ -1793,7 +1793,7 @@
             if (state && !state.winner) {
                 updateStatus();
                 updatePlayerNamesDisplay();
-                updateGameInfoDisplay(); // CORRECTION: Refresh game info on language change
+                updateGameInfoDisplay();
             }
             updateColorOptionSelection(humanPlayerId);
             if (rulesModal.classList.contains('active')) {
@@ -1851,7 +1851,6 @@
             });
         }
 
-        // CORRECTION: New function to handle dynamic game info text
         function updateGameInfoDisplay() {
             const variantInfoEl = document.getElementById('game-variant-info');
             const difficultyInfoEl = document.getElementById('game-difficulty-info');
@@ -1910,8 +1909,8 @@
             statusDiv.classList.add('status-error');
             setTimeout(() => {
                 statusDiv.classList.remove('status-error');
-                statusDiv.textContent = originalText; // Revert to original text before the error
-                updateStatus(); // Then update to current correct status
+                statusDiv.textContent = originalText;
+                updateStatus();
             }, 1500);
         }
 
@@ -1926,7 +1925,7 @@
             return {
                 board: Array(SIZE * SIZE).fill(null),
                 phase: "placement",
-                turn: 2, // CHANGE: White (Player 2) starts
+                turn: 2,
                 turnForCapture: null,
                 counts: { 1: PIECES, 2: PIECES },
                 captured: { 1: 0, 2: 0 },
@@ -1950,16 +1949,20 @@
                 if (p1Input) {
                     if (humanPlayerId === 1) player1Name = p1Input;
                     else player2Name = p1Input;
+                } else {
+                    if (humanPlayerId === 1) player1Name = translations[currentLanguage].defaultHumanName;
+                     else player2Name = translations[currentLanguage].defaultHumanName;
                 }
+
                 if (aiPlayerId === 1) player1Name = translations[currentLanguage].defaultComputerName;
                 else player2Name = translations[currentLanguage].defaultComputerName;
             } else {
                 aiPlayerId = null;
-                if (p1Input) player1Name = p1Input;
-                if (p2Input) player2Name = p2Input;
+                player1Name = p1Input || translations[currentLanguage].defaultPlayer1;
+                player2Name = p2Input || translations[currentLanguage].defaultPlayer2;
             }
             
-            updateGameInfoDisplay(); // CORRECTION: Use the new function
+            updateGameInfoDisplay();
             showScreen('game-play-area');
             renderAll();
             triggerNextAction();
@@ -2045,7 +2048,7 @@
             if (state.captureMode) {
                 const totalCaptures = state.captured[state.turnForCapture] + state.pendingCaptures;
                 const currentCaptureNumber = totalCaptures - state.pendingCaptures + 1;
-                const captureCountInfo = state.pendingCaptures > 1 ? ` (${currentCaptureNumber}/${state.captured[state.turnForCapture] + state.pendingCaptures + state.pendingCaptures -1})` : ''; // Logic needs review
+                const captureCountInfo = state.pendingCaptures > 1 ? ` (${currentCaptureNumber}/${state.captured[state.turnForCapture] + state.pendingCaptures + state.pendingCaptures -1})` : '';
                 
                 const playerWhoChoosesName = (state.turnForCapture === 1) ? p1NameForStatus : p2NameForStatus;
 
@@ -2096,12 +2099,19 @@
         }
         
         function handleUndo() {
-            if (moveHistory.length === 0) return;
-            if (gameMode === 'ai' && moveHistory.length > 1 && state.turn !== humanPlayerId) {
-                 moveHistory.pop();
+            if (undoBtn.disabled) return;
+
+            if (gameMode === 'ai') {
+                if (moveHistory.length >= 2) {
+                    moveHistory.pop();
+                    state = moveHistory.pop();
+                } else if (moveHistory.length === 1) {
+                    state = moveHistory.pop();
+                }
+            } else {
+                state = moveHistory.pop();
             }
-            
-            state = moveHistory.pop();
+
             renderAll();
         }
 
@@ -2394,10 +2404,46 @@
         }
 
         // --- ARTIFICIAL INTELLIGENCE ---
+        const STRATEGIC_CELLS = {
+            center: [12],
+            inner_corners: [6, 8, 16, 18],
+            edge_centers: [7, 11, 13, 17],
+            inner_ring: [6, 7, 8, 11, 12, 13, 16, 17, 18],
+        };
+
+        function evaluatePlacement(board, playerToEvaluate) {
+            const opponent = 3 - playerToEvaluate;
+            let score = 0;
+
+            if (!variantConfig[variant].isInverseWin) {
+                board.forEach((cell, idx) => {
+                    if (cell === playerToEvaluate) {
+                        if (STRATEGIC_CELLS.center.includes(idx)) score += 50;
+                        if (STRATEGIC_CELLS.inner_corners.includes(idx)) score += 35;
+                        if (STRATEGIC_CELLS.edge_centers.includes(idx)) score += 20;
+                    }
+                });
+                score += getPotentialMillsCount(board, playerToEvaluate) * 30;
+                score -= getPotentialMillsCount(board, opponent) * 40;
+            } else {
+                board.forEach((cell, idx) => {
+                    if (cell === playerToEvaluate) {
+                        if (STRATEGIC_CELLS.center.includes(idx)) score -= 50;
+                        if (STRATEGIC_CELLS.inner_ring.includes(idx)) score -= 25;
+                        const r = Math.floor(idx / SIZE), c = idx % SIZE;
+                        if (c > 0 && board[idx - 1] === playerToEvaluate) score -= 30;
+                        if (r > 0 && board[idx - SIZE] === playerToEvaluate) score -= 30;
+                    }
+                });
+                score -= getPotentialMillsCount(board, playerToEvaluate) * 40;
+                score += getPotentialMillsCount(board, opponent) * 50;
+            }
+            return score;
+        }
+
         function getPossibleMillMoves(player, board) {
             const millMoves = [];
-            const currentPhase = state.phase; 
-            if (currentPhase === 'placement') return [];
+            if (state.phase === 'placement') return [];
             for (let from = 0; from < SIZE * SIZE; from++) {
                 if (board[from] === player) {
                     for (let to = 0; to < SIZE * SIZE; to++) {
@@ -2446,46 +2492,122 @@
             }
         }
         
-        function aiChoosePieceToActOn() {
-            const playerWhosePiecesAreTargetable = variantConfig[variant].isInverseWin ? aiPlayerId : humanPlayerId; 
-            const targetablePieces = [];
-            for (let i = 0; i < SIZE * SIZE; i++) { 
-                if (state.board[i] === playerWhosePiecesAreTargetable) {
-                    targetablePieces.push(i);
-                }
-            }
-            if (targetablePieces.length === 0) return null;
-
-            if (aiDifficulty > 1) { // Smarter choice for Medium/Hard
-                let bestPiece = -1;
-                let bestScore = -Infinity; // AI wants to maximize its score after the capture
-
-                for (const piece of targetablePieces) {
-                    const tempBoard = [...state.board];
-                    tempBoard[piece] = null;
-                    // We evaluate from the AI's perspective, assuming it's the AI's turn next
-                    const score = minimax(tempBoard, aiDifficulty, false, humanPlayerId, -Infinity, Infinity);
-                    if (score > bestScore) {
-                        bestScore = score;
-                        bestPiece = piece;
-                    }
-                }
-                return bestPiece;
-            }
-            
-            // Random choice for Easy
-            return targetablePieces[Math.floor(Math.random() * targetablePieces.length)];
+        function isPieceInPotentialMill(board, pieceIndex, player) {
+            const potentialMillsBefore = getPotentialMillsCount(board, player);
+            const tempBoard = [...board];
+            tempBoard[pieceIndex] = null;
+            const potentialMillsAfter = getPotentialMillsCount(tempBoard, player);
+            return potentialMillsAfter < potentialMillsBefore;
         }
 
-        // AI IMPROVEMENT: Reworked evaluation function
+        function aiChoosePieceToActOn() {
+            const isInverse = variantConfig[variant].isInverseWin;
+            const playerToTarget = isInverse ? aiPlayerId : humanPlayerId;
+        
+            const possibleTargets = [];
+            for (let i = 0; i < state.board.length; i++) {
+                if (state.board[i] === playerToTarget) {
+                    possibleTargets.push(i);
+                }
+            }
+        
+            if (possibleTargets.length === 0) return null;
+        
+            if (aiDifficulty === 1) {
+                return possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+            }
+        
+            let bestTarget = -1;
+            let bestScore = isInverse ? Infinity : -Infinity;
+        
+            for (const target of possibleTargets) {
+                const tempBoard = [...state.board];
+                tempBoard[target] = null;
+                let score = 0;
+        
+                if (isInverse) {
+                    const depth = aiDifficulty === 3 ? 2 : 1;
+                    score = minimax(tempBoard, depth, false, humanPlayerId, -Infinity, Infinity);
+                } else {
+                    const opponentMillsBefore = getFormedMillsCount(state.board, humanPlayerId);
+                    const opponentMillsAfter = getFormedMillsCount(tempBoard, humanPlayerId);
+                    if (opponentMillsAfter < opponentMillsBefore) {
+                        score += 5000;
+                    }
+        
+                    if (isPieceInPotentialMill(state.board, target, humanPlayerId)) {
+                        score += 3500; 
+                    }
+                    
+                    const opponentCanFormMillBefore = canPlayerFormMillNextTurn(humanPlayerId, state.board);
+                    const opponentCanFormMillAfter = canPlayerFormMillNextTurn(humanPlayerId, tempBoard);
+                    if (opponentCanFormMillBefore && !opponentCanFormMillAfter) {
+                         score += 2500;
+                    }
+                    
+                    if (aiDifficulty === 3) {
+                        score += minimax(tempBoard, aiDifficulty - 1, false, humanPlayerId, -Infinity, Infinity);
+                    } else {
+                        score += evaluateBoard(tempBoard, aiPlayerId, null);
+                    }
+                }
+        
+                if (isInverse) { 
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestTarget = target;
+                    }
+                } else { 
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestTarget = target;
+                    }
+                }
+            }
+            return bestTarget !== -1 ? bestTarget : possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+        }
+
+        // AMÉLIORATION: Nouvelle fonction pour détecter les configurations de "double moulin".
+        // C'est une stratégie gagnante, l'IA doit absolument la reconnaître.
+        function countDoubleMillSetups(board, player) {
+            let hotSpots = {}; // Stocke les cases vides qui font partie de moulins potentiels
+            const lines = [];
+            // Définir toutes les lignes possibles de moulin
+            for (let r = 0; r < SIZE; r++) { for (let c = 0; c < SIZE - 2; c++) { lines.push([r*SIZE+c, r*SIZE+c+1, r*SIZE+c+2]); } }
+            for (let c = 0; c < SIZE; c++) { for (let r = 0; r < SIZE - 2; r++) { lines.push([r*SIZE+c, (r+1)*SIZE+c, (r+2)*SIZE+c]); } }
+
+            for (const line of lines) {
+                let pCount = 0;
+                let emptyIdx = -1;
+                for (const idx of line) {
+                    if (board[idx] === player) pCount++;
+                    else if (board[idx] === null) emptyIdx = idx;
+                }
+                // S'il s'agit d'un moulin potentiel (2 pions, 1 case vide)
+                if (pCount === 2 && emptyIdx !== -1) {
+                    hotSpots[emptyIdx] = (hotSpots[emptyIdx] || 0) + 1;
+                }
+            }
+            
+            let doubleMillCount = 0;
+            for (const spot in hotSpots) {
+                // Si une case vide fait partie de 2 ou plusieurs moulins potentiels, c'est une configuration de double moulin.
+                if (hotSpots[spot] >= 2) {
+                    doubleMillCount++;
+                }
+            }
+            return doubleMillCount;
+        }
+
+        // AMÉLIORATION: La fonction d'évaluation est plus intelligente et valorise les doubles moulins.
         function evaluateBoard(board, playerToEvaluate, simulatedWinner) {
             const opponent = 3 - playerToEvaluate;
 
             if (simulatedWinner !== null) {
                 if (variantConfig[variant].isInverseWin) {
-                    return simulatedWinner === playerToEvaluate ? 10000 : -10000;
+                    return simulatedWinner === playerToEvaluate ? 100000 : -100000;
                 }
-                return simulatedWinner === playerToEvaluate ? 10000 : -10000;
+                return simulatedWinner === playerToEvaluate ? 100000 : -100000;
             }
 
             const playerPieces = board.filter(p => p === playerToEvaluate).length;
@@ -2494,11 +2616,9 @@
             const opponentMoves = countPlayerMoves(opponent, board);
 
             let score = 0;
-            // Core scoring: piece difference and mobility
             score += (playerPieces - opponentPieces) * 200;
-            score += (playerMoves - opponentMoves) * 10;
+            score += (playerMoves - opponentMoves) * 20; // Poids de la mobilité augmenté
             
-            // Mill scoring: potential and actual
             const playerMills = getFormedMillsCount(board, playerToEvaluate);
             const opponentMills = getFormedMillsCount(board, opponent);
             score += (playerMills - opponentMills) * 150;
@@ -2507,21 +2627,17 @@
             const opponentPotentialMills = getPotentialMillsCount(board, opponent);
             score += (playerPotentialMills - opponentPotentialMills) * 50;
             
-            // Block opponent's winning move is a high priority
-            if (canPlayerFormMillNextTurn(opponent, board)) {
-                score -= 500;
-            }
-            // Forming own mill is a high priority
-            if (canPlayerFormMillNextTurn(playerToEvaluate, board)) {
-                score += 400;
-            }
+            // Évaluation des doubles moulins : très grand avantage/désavantage
+            const playerDoubleMills = countDoubleMillSetups(board, playerToEvaluate);
+            const opponentDoubleMills = countDoubleMillSetups(board, opponent);
+            score += (playerDoubleMills - opponentDoubleMills) * 5000;
+            
+            if (canPlayerFormMillNextTurn(opponent, board)) score -= 1000; // Pénalité augmentée
+            if (canPlayerFormMillNextTurn(playerToEvaluate, board)) score += 800; // Récompense augmentée
 
             if (variantConfig[variant].isInverseWin) {
-                // In inverse win, the logic flips. AI wants fewer pieces and less mobility.
-                // It also wants the opponent to have more pieces and mobility.
-                // It should avoid forming mills.
                 score = -score;
-                score -= playerMills * 300; // Heavily penalize forming mills
+                score -= playerMills * 300;
             }
             
             return score;
@@ -2546,7 +2662,6 @@
         }
         
         function canPlayerFormMillNextTurn(player, board) {
-            const currentPhase = (board.filter(p => p !== null).length < PIECES * 2) ? 'placement' : 'move';
             return getPossibleMillMoves(player, board).length > 0;
         }
 
@@ -2569,15 +2684,22 @@
         }
 
         function minimax(currentBoard, depth, isMaximizingPlayer, currentPlayer, alpha, beta) {
+            const currentPhase = (currentBoard.filter(p => p !== null).length < PIECES * 2) ? 'placement' : 'move';
             const simulatedWinner = getWinnerInState(currentBoard);
-            if (depth === 0 || simulatedWinner !== null) { 
+
+            if (depth === 0 || simulatedWinner !== null) {
+                if (currentPhase === 'placement') {
+                    return evaluatePlacement(currentBoard, aiPlayerId);
+                }
                 return evaluateBoard(currentBoard, aiPlayerId, simulatedWinner);
             }
 
             const opponentPlayer = 3 - currentPlayer;
-            const currentPhase = (currentBoard.filter(p => p !== null).length < PIECES * 2) ? 'placement' : 'move';
             const possibleMoves = generateAllPossibleMoves(currentPlayer, currentBoard, currentPhase);
             if (possibleMoves.length === 0) { 
+                if (currentPhase === 'placement') {
+                    return evaluatePlacement(currentBoard, aiPlayerId);
+                }
                 return evaluateBoard(currentBoard, aiPlayerId, opponentPlayer);
             }
 
@@ -2693,29 +2815,27 @@
 
             if (possibleMoves.length === 0) return null;
             
-            // Priority 1: If AI can form a mill, do it (unless inverse win)
-            const millMoves = getPossibleMillMoves(player, state.board);
-            if (millMoves.length > 0 && !variantConfig[variant].isInverseWin) {
-                return millMoves[Math.floor(Math.random() * millMoves.length)];
-            }
-            
-            // Priority 2: If opponent is about to form a mill, block them.
-            const opponentMillMoves = getPossibleMillMoves(opponent, state.board);
-            if (opponentMillMoves.length > 0) {
-                const blockingMoveTargets = opponentMillMoves.map(move => move.to);
-                const availableBlockingMoves = possibleMoves.filter(move => blockingMoveTargets.includes(move.to));
-                if (availableBlockingMoves.length > 0) {
-                    return availableBlockingMoves[Math.floor(Math.random() * availableBlockingMoves.length)];
+            if (currentPhase === 'move') {
+                const millMoves = getPossibleMillMoves(player, state.board);
+                if (millMoves.length > 0 && !variantConfig[variant].isInverseWin) {
+                    return millMoves[Math.floor(Math.random() * millMoves.length)];
+                }
+                const opponentMillMoves = getPossibleMillMoves(opponent, state.board);
+                if (opponentMillMoves.length > 0) {
+                    const blockingMoveTargets = opponentMillMoves.map(move => move.to);
+                    const availableBlockingMoves = possibleMoves.filter(move => blockingMoveTargets.includes(move.to));
+                    if (availableBlockingMoves.length > 0) {
+                        return availableBlockingMoves[Math.floor(Math.random() * availableBlockingMoves.length)];
+                    }
                 }
             }
             
-            // For Easy difficulty, return a random move
             if (aiDifficulty === 1) {
                 return possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
             }
 
-            // For Medium/Hard, use minimax
-            const depth = aiDifficulty; // depth 2 for Medium, 3 for Hard
+            // AMÉLIORATION: Profondeur de recherche augmentée pour la difficulté "Difficile"
+            const depth = aiDifficulty === 3 ? 4 : aiDifficulty;
             let bestMove = null;
             let bestScore = -Infinity;
 
