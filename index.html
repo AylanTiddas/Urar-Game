@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
 <meta content="width=device-width, initial-scale=1.0" name="viewport" />
 <!-- Security hardening -->
-<meta content="default-src 'self' data: blob:; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'nonce-tiddas'; script-src 'self' 'nonce-tiddas'; connect-src 'self' https://parseapi.back4app.com https://*.b4a.io; upgrade-insecure-requests; worker-src 'self' blob:; manifest-src 'self' blob:" http-equiv="Content-Security-Policy" />
+<meta content="default-src 'self' data: blob:; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'nonce-tiddas'; script-src 'self' 'nonce-tiddas' https://unpkg.com; connect-src 'self' https://parseapi.back4app.com https://*.b4a.io wss://*.b4a.io; upgrade-insecure-requests; worker-src 'self' blob:; manifest-src 'self' blob:" http-equiv="Content-Security-Policy" />
 <meta content="no-referrer" name="referrer" />
 <meta content="camera=(), microphone=(), geolocation=(), payment=(), usb=()" http-equiv="Permissions-Policy" />
 <meta content="dark light" name="color-scheme" />
@@ -7904,6 +7904,9 @@ body:has(.game-play-area.active) footer {
 #settings-fab::before { content: none !important; animation: none !important; }
 
 </style>
+
+    <!-- Parse JS SDK (Back4App) -->
+    <script src="https://unpkg.com/parse/dist/parse.min.js"></script>
 </head>
 <body>
 <!-- ===== LANGUAGE SPLASH SCREEN ===== -->
@@ -8799,55 +8802,44 @@ i.replaceWith(s);
 'use strict';
 
 // ============================================================
-// === ONLINE MULTIPLAYER (Back4App / Parse REST - sans LiveQuery) ===
 // ============================================================
-// ✅ Fonctionne sur GitHub Pages (site statique) car Back4App fournit l'API.
-// ⚠️ LiveQuery n'est pas utilisé : on synchronise via polling (toutes les ~1.2s).
-//
-// 1) Crée une app Back4App (Parse)
-// 2) Récupère Application ID + JavaScript Key (NE JAMAIS mettre la Master Key ici)
-// 3) Renseigne les constantes ci-dessous
-//
-// Back4App REST: https://parseapi.back4app.com/classes/<ClassName>
-const BACK4APP_APP_ID = "VMhryi5EDImiXiv7Bns8gqgYbZk4Lj1BAW82831e";   // <-- TON Application ID
-const BACK4APP_JS_KEY = "p24de2pza31p4HciL3gaSRJYL3NpkJ1pOg1JBlAi";   // <-- TA JavaScript Key
-const BACK4APP_SERVER_URL = "https://parseapi.back4app.com"; // ok sans sous-domaine
+// === ONLINE MULTIPLAYER (Back4App) — NO LiveQuery (polling) ===
+// ============================================================
+// Back4App keys (App Settings -> Security & Keys)
+// IMPORTANT: Do NOT put Master Key in the browser.
+const BACK4APP_APP_ID = "VMhryi5EDImiXiv7Bns8gqgYbZk4Lj1BAW82831e";        // <-- set me
+const BACK4APP_JS_KEY = "Ivsf7VBWVlC8db6c78iu4bAR20slUjNzNlzyPfm8";        // <-- set me (JavaScript Key)
+const BACK4APP_SERVER_URL = "https://parseapi.back4app.com"; // default API URL
+const BACK4APP_CLASS = "GameMatch"; // class/table name in Back4App
 
-// Classe Parse utilisée pour stocker les matchs 1v1
-const BACK4APP_CLASS = "GameMatch";
-
-// Fréquence polling (ms) — tour par tour => 900–1500ms OK
-const ONLINE_POLL_MS = 1200;
-
-// Identifiant local joueur (persistant sur l'appareil)
-const LOCAL_PLAYER_ID_KEY = "tiddas_local_player_id";
-let localPlayerId = null;
-try {
-  localPlayerId = localStorage.getItem(LOCAL_PLAYER_ID_KEY);
-  if (!localPlayerId && (crypto && crypto.randomUUID)) {
-    localPlayerId = crypto.randomUUID();
-    localStorage.setItem(LOCAL_PLAYER_ID_KEY, localPlayerId);
+// Client identity (per device) to assign roles in a 1v1 room
+const ONLINE_PLAYER_ID_KEY = "tiddas_online_player_id_v1";
+function _getOrCreatePlayerId() {
+  try {
+    const existing = localStorage.getItem(ONLINE_PLAYER_ID_KEY);
+    if (existing) return existing;
+    const id = (window.crypto && typeof window.crypto.randomUUID === 'function')
+      ? window.crypto.randomUUID()
+      : ("p_" + Math.random().toString(36).slice(2) + Date.now().toString(36));
+    localStorage.setItem(ONLINE_PLAYER_ID_KEY, id);
+    return id;
+  } catch (_) {
+    return "p_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
   }
-  if (!localPlayerId) {
-    // fallback simple
-    localPlayerId = "p_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
-    localStorage.setItem(LOCAL_PLAYER_ID_KEY, localPlayerId);
-  }
-} catch(_) {
-  localPlayerId = "p_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
 }
+const onlinePlayerId = _getOrCreatePlayerId();
 
 let online = {
-  room: null,       // code salon
-  objectId: null,   // id Parse
-  role: null,       // 1 ou 2 (correspond à state.turn dans ton jeu)
+  matchId: null,
+  room: null,
+  role: null, // 1 or 2
   isHost: false,
   connected: false,
   ready: false,
   suppressSend: false,
-  pollTimer: null,
-  lastRevision: -1,
-  lastUpdatedAt: null
+  pollTimer: 0,
+  lastSeenRev: -1,
+  parseReady: false
 };
 
 const onlineEls = {
@@ -8855,6 +8847,28 @@ const onlineEls = {
   btnCreate: null, btnJoin: null, joinPanel: null, inputCode: null,
   btnConnect: null, btnStart: null, btnCopy: null, btnBack: null
 };
+
+function _isBack4AppConfigured() {
+  const a = (BACK4APP_APP_ID || '').trim();
+  const k = (BACK4APP_JS_KEY || '').trim();
+  return !!a && !!k && !/set me/i.test(a) && !/set me/i.test(k);
+}
+
+function _ensureParseReady() {
+  if (online.parseReady) return true;
+  if (!_isBack4AppConfigured()) return false;
+  if (!window.Parse) return false;
+  try {
+    // Normalize URL (no trailing slash)
+    const url = (BACK4APP_SERVER_URL || 'https://parseapi.back4app.com').trim().replace(/\/$/, '');
+    Parse.initialize(BACK4APP_APP_ID.trim(), BACK4APP_JS_KEY.trim());
+    Parse.serverURL = url;
+    online.parseReady = true;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
 
 function _setOnlineStatus(msg) {
   if (onlineEls.statusText) onlineEls.statusText.textContent = msg || '—';
@@ -8866,185 +8880,199 @@ function _randCode(len=6) {
   for (let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)];
   return out;
 }
-function _isBack4AppConfigured() {
-  return !!(BACK4APP_APP_ID && BACK4APP_JS_KEY && BACK4APP_SERVER_URL);
-}
-function _parseHeaders() {
-  return {
-    "X-Parse-Application-Id": BACK4APP_APP_ID,
-    "X-Parse-JavaScript-Key": BACK4APP_JS_KEY,
-    "Content-Type": "application/json"
-  };
-}
-async function _parseFetch(path, options={}) {
-  const url = BACK4APP_SERVER_URL.replace(/\/$/,'') + path;
-  const res = await fetch(url, {
-    ...options,
-    headers: { ..._parseHeaders(), ...(options.headers||{}) }
-  });
-  const body = await res.json().catch(()=> ({}));
-  if (!res.ok) {
-    const msg = body?.error || ("HTTP " + res.status);
-    throw new Error(msg);
-  }
-  return body;
-}
-async function _findByCode(code) {
-  const where = encodeURIComponent(JSON.stringify({ code }));
-  const r = await _parseFetch(`/classes/${BACK4APP_CLASS}?where=${where}&limit=1`, { method: "GET" });
-  const row = r?.results?.[0] || null;
-  return row;
-}
 
 function onlineDisconnect() {
-  try { if (online.pollTimer) clearInterval(online.pollTimer); } catch(_) {}
-  online.pollTimer = null;
+  if (online.pollTimer) { clearInterval(online.pollTimer); online.pollTimer = 0; }
+  online.matchId = null;
   online.room = null;
-  online.objectId = null;
-  online.connected = false;
-  online.ready = false;
   online.role = null;
   online.isHost = false;
-  online.lastRevision = -1;
-  online.lastUpdatedAt = null;
+  online.connected = false;
+  online.ready = false;
+  online.suppressSend = false;
+  online.lastSeenRev = -1;
 }
 
-async function onlineCreateRoom() {
-  if (!_isBack4AppConfigured()) {
-    _setOnlineStatus("Serveur Back4App non configuré (APP_ID / JS_KEY).");
-    return null;
-  }
-  const code = _randCode(6);
-  const payload = {
-    code,
-    status: "waiting",
-    player1Id: localPlayerId,
-    player2Id: null,
-    createdAtMs: Date.now(),
-    variant,
-    state,
-    meta: { player1Name, player2Name, turn: state?.turn ?? null },
-    revision: 0
-  };
-  const created = await _parseFetch(`/classes/${BACK4APP_CLASS}`, { method:"POST", body: JSON.stringify(payload) });
-  return { code, objectId: created.objectId };
+async function _fetchMatchByCode(code) {
+  const q = new Parse.Query(BACK4APP_CLASS);
+  q.equalTo('code', code);
+  q.descending('createdAt');
+  return await q.first();
 }
 
-async function onlineJoinRoom(code) {
-  if (!_isBack4AppConfigured()) {
-    _setOnlineStatus("Serveur Back4App non configuré (APP_ID / JS_KEY).");
-    return null;
-  }
-  const row = await _findByCode(code);
-  if (!row) throw new Error("Code salon introuvable.");
-  if (row.status && row.status !== "waiting" && row.status !== "playing") {
-    throw new Error("Salon indisponible.");
-  }
-  if (!row.player1Id) throw new Error("Salon invalide.");
-  if (row.player1Id === localPlayerId) throw new Error("Tu es déjà l'hôte sur cet appareil.");
-  if (row.player2Id && row.player2Id !== localPlayerId) throw new Error("Salon déjà complet.");
+async function _fetchMatchById(id) {
+  const q = new Parse.Query(BACK4APP_CLASS);
+  return await q.get(id);
+}
 
-  // Si slot joueur2 vide -> le prendre
-  if (!row.player2Id) {
-    await _parseFetch(`/classes/${BACK4APP_CLASS}/${row.objectId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        player2Id: localPlayerId,
-        status: "playing",
-        revision: (row.revision ?? 0) + 1
-      })
-    });
+function _applyLobbyStateFromMatch(match) {
+  const status = match.get('status') || 'waiting';
+  const p1 = match.get('p1Id') || null;
+  const p2 = match.get('p2Id') || null;
+
+  // Determine role if not already set
+  if (!online.role) {
+    if (p1 === onlinePlayerId) { online.role = 1; online.isHost = true; }
+    else if (p2 === onlinePlayerId) { online.role = 2; online.isHost = false; }
   }
-  return { code, objectId: row.objectId };
+
+  online.ready = !!(p1 && p2);
+
+  if (online.ready) {
+    _setOnlineStatus("2 joueurs connectés. " + (online.isHost ? "Tu peux lancer la partie." : "En attente du lancement…"));
+    _show(onlineEls.btnStart, !!online.isHost && status !== 'playing' && status !== 'finished');
+  } else {
+    _setOnlineStatus(online.isHost ? "Salon créé. Partage le code et attends un adversaire…" : "Connexion…");
+    _show(onlineEls.btnStart, false);
+  }
 }
 
 function _startPolling() {
-  if (online.pollTimer) clearInterval(online.pollTimer);
+  if (online.pollTimer) return;
   online.pollTimer = setInterval(async () => {
-    if (!online.connected || !online.room) return;
+    if (!online.connected || !online.matchId) return;
     try {
-      const row = await _findByCode(online.room);
-      if (!row) return;
+      const match = await _fetchMatchById(online.matchId);
+      _applyLobbyStateFromMatch(match);
 
-      // Lobby UI : prêt quand 2 joueurs présents
-      const hasP2 = !!row.player2Id;
-      online.ready = hasP2;
-      if (onlineEls.btnStart) _show(onlineEls.btnStart, online.isHost && hasP2);
+      const rev = Number(match.get('rev') || 0);
+      if (rev !== online.lastSeenRev) {
+        online.lastSeenRev = rev;
+        const payload = match.get('payload') || null;
 
-      // Appliquer l'état si nouveau
-      const rev = row.revision ?? 0;
-      const updatedAt = row.updatedAt ?? null;
-      const changed = (rev !== online.lastRevision) || (updatedAt && updatedAt !== online.lastUpdatedAt);
-      if (changed && row.state) {
-        online.lastRevision = rev;
-        online.lastUpdatedAt = updatedAt;
-        onlineApplyState({
-          variant: row.variant,
-          state: row.state,
-          meta: row.meta || null
-        });
+        if (payload && payload.state) {
+          onlineApplyState(payload);
+          // If we received game state, jump into the game UI
+          if (typeof showScreen === 'function') showScreen('game-area');
+        }
       }
     } catch (e) {
-      // Ne pas casser l'app : afficher un statut discret
-      _setOnlineStatus("Connexion instable…");
+      // network / permission errors
+      _setOnlineStatus("Erreur réseau Back4App. Vérifie les permissions (CLP) et ta connexion.");
     }
-  }, ONLINE_POLL_MS);
+  }, 1200);
 }
 
-async function onlineConnectToRoom(code, asHost=false) {
-  // Rattache le front au salon et démarre le polling
+async function onlineConnectToRoom_Back4App(code, creating) {
+  code = String(code || '').trim().toUpperCase();
+  if (!code) return;
+
+  if (!_ensureParseReady()) {
+    _setOnlineStatus("Back4App n'est pas configuré ou Parse SDK non chargé.");
+    return;
+  }
+
+  onlineDisconnect();
   online.room = code;
-  online.isHost = !!asHost;
-  online.role = asHost ? 1 : 2;
-  online.connected = true;
-  online.ready = false;
-  _setOnlineStatus(asHost ? `Salon créé : ${code}` : `Connecté au salon : ${code}`);
-  _startPolling();
-}
+  _show(onlineEls.roomCodeRow, true);
+  if (onlineEls.roomCode) onlineEls.roomCode.textContent = code;
+  _show(onlineEls.btnStart, false);
 
-async function onlineStartMatch() {
-  // L'hôte lance : on force un "playing" + snapshot initial
-  if (!online.isHost || !online.objectId) return;
   try {
-    const row = await _findByCode(online.room);
-    const rev = row?.revision ?? 0;
-    await _parseFetch(`/classes/${BACK4APP_CLASS}/${online.objectId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        status: "playing",
-        variant,
-        state,
-        meta: { player1Name, player2Name, turn: state?.turn ?? null },
-        revision: rev + 1
-      })
-    });
-    _setOnlineStatus("Partie lancée !");
-  } catch(e) {
-    _setOnlineStatus("Erreur lancement : " + (e?.message || e));
+    if (creating) {
+      _setOnlineStatus("Création du salon " + code + "…");
+      const existing = await _fetchMatchByCode(code);
+      if (existing) throw new Error("Code déjà utilisé. Réessaie avec un autre code.");
+
+      const match = new Parse.Object(BACK4APP_CLASS);
+      match.set('code', code);
+      match.set('status', 'waiting');
+      match.set('p1Id', onlinePlayerId);
+      match.set('p2Id', null);
+      match.set('rev', 0);
+      match.set('payload', null);
+
+      await match.save();
+
+      online.matchId = match.id;
+      online.role = 1;
+      online.isHost = true;
+      online.connected = true;
+      online.ready = false;
+
+      _setOnlineStatus("Salon créé. Partage le code : " + code);
+    } else {
+      _setOnlineStatus("Connexion au salon " + code + "…");
+      const match = await _fetchMatchByCode(code);
+      if (!match) throw new Error("Salon introuvable. Vérifie le code.");
+
+      const status = match.get('status') || 'waiting';
+      const p1 = match.get('p1Id') || null;
+      const p2 = match.get('p2Id') || null;
+
+      if (status === 'finished') throw new Error("Cette partie est terminée.");
+
+      // If same device rejoining
+      if (p1 === onlinePlayerId) {
+        online.role = 1; online.isHost = true;
+      } else if (p2 === onlinePlayerId) {
+        online.role = 2; online.isHost = false;
+      } else if (!p2) {
+        match.set('p2Id', onlinePlayerId);
+        if (status === 'waiting') match.set('status', 'ready');
+        await match.save();
+        online.role = 2; online.isHost = false;
+      } else {
+        throw new Error("Salon complet (2 joueurs).");
+      }
+
+      online.matchId = match.id;
+      online.connected = true;
+      online.ready = !!(match.get('p1Id') && match.get('p2Id'));
+
+      _applyLobbyStateFromMatch(match);
+
+      // If a game already started, apply latest state immediately
+      const payload = match.get('payload') || null;
+      if (payload && payload.state) {
+        online.lastSeenRev = Number(match.get('rev') || 0);
+        onlineApplyState(payload);
+        if (typeof showScreen === 'function') showScreen('game-area');
+      }
+    }
+
+    online.lastSeenRev = -1;
+    _startPolling();
+  } catch (e) {
+    onlineDisconnect();
+    _setOnlineStatus("Erreur : " + (e && e.message ? e.message : String(e)));
   }
 }
 
-async function onlineSendState(reason='sync') {
+function onlineSendState(reason='sync') {
   if (gameMode !== 'online') return;
   if (!online.connected || online.suppressSend) return;
-  if (!_isBack4AppConfigured()) return;
-  if (!online.objectId) return;
+  if (!_ensureParseReady()) return;
+  if (!online.matchId) return;
 
-  try {
-    // Lecture rapide pour incrémenter revision de façon cohérente
-    const row = await _findByCode(online.room);
-    const rev = row?.revision ?? online.lastRevision ?? 0;
-    await _parseFetch(`/classes/${BACK4APP_CLASS}/${online.objectId}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        reason,
-        variant,
-        state,
-        meta: { player1Name, player2Name, turn: state?.turn ?? null },
-        revision: rev + 1
-      })
-    });
-  } catch(_) {}
+  // build payload snapshot
+  const payload = {
+    reason,
+    room: online.room,
+    variant,
+    state,
+    meta: { player1Name, player2Name, turn: state?.turn ?? null, at: Date.now() }
+  };
+
+  // Fire-and-forget: update room payload + increment revision
+  (async () => {
+    try {
+      const match = new Parse.Object(BACK4APP_CLASS);
+      match.id = online.matchId;
+
+      match.set('payload', JSON.parse(JSON.stringify(payload)));
+      match.increment('rev', 1);
+
+      // Keep room status in sync (start -> playing, winner -> finished)
+      if (reason === 'start') match.set('status', 'playing');
+      if (state && state.winner) match.set('status', 'finished');
+
+      await match.save();
+    } catch (e) {
+      // don't crash the game UI
+      if (onlineEls.statusText) _setOnlineStatus("Erreur d'envoi. Vérifie ta connexion Back4App.");
+    }
+  })();
 }
 
 function onlineApplyState(msg) {
@@ -9072,6 +9100,7 @@ function isMyTurnOnline() {
   const t = state?.turn;
   return (online.role && t) ? (online.role === t) : true;
 }
+
 // Helpers DOM rapides
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -12807,7 +12836,7 @@ updateStatus();
 const SAVE_KEY = 'tiddas_save_v2';
 function saveGame() {
   // Online: broadcast snapshot after each local change
-if (!state || state.winner || gameMode === 'spectator') return;
+if (!state || gameMode === 'spectator') return;
 try {
 const save = {
 state,
@@ -12820,6 +12849,8 @@ player2Name,
 moveLog: moveLog.slice(-20)
 };
 localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+  // Sync online snapshot (polling mode)
+  if (gameMode === 'online') { try { onlineSendState('autosave'); } catch(_) {} }
 } catch (e) {}
 }
 function clearSave() {
@@ -14868,118 +14899,40 @@ if (onlineBtn) {
     onlineEls.btnCopy = document.getElementById('online-copy-code');
     onlineEls.btnBack = document.getElementById('back-to-modes-from-online-btn');
 
-    _setOnlineStatus(ONLINE_SERVER_URL ? "Choisis : créer ou rejoindre un salon." : t('onlineNotConfigured', "Le serveur en ligne n'est pas configuré."));
+    _setOnlineStatus(_isBack4AppConfigured() ? "Choisis : créer ou rejoindre un salon." : t('onlineNotConfigured', "Back4App n'est pas configuré (clés manquantes)."));
+
+    // Disable online actions if not configured
+    const __onlineOk = _isBack4AppConfigured();
+    if (onlineEls.btnCreate) onlineEls.btnCreate.disabled = !__onlineOk;
+    if (onlineEls.btnConnect) onlineEls.btnConnect.disabled = !__onlineOk;
+
 
     if (onlineEls.btnBack) onlineEls.btnBack.onclick = () => { onlineDisconnect(); showScreen('mode-selection-area'); };
     if (onlineEls.btnJoin) onlineEls.btnJoin.onclick = () => { _show(onlineEls.joinPanel, true); onlineEls.inputCode?.focus(); };
 
-    if (onlineEls.btnCreate) onlineEls.btnCreate.onclick = async () => {
-      try {
-        _setOnlineStatus("Création du salon…");
-        const created = await onlineCreateRoom();
-        if (!created) return;
-        const code = created.code;
-        online.objectId = created.objectId;
-        if (onlineEls.inputCode) onlineEls.inputCode.value = code;
-        _show(onlineEls.joinPanel, false);
-        await onlineConnectToRoom(code, true);
-      } catch (e) {
-        _setOnlineStatus("Erreur création : " + (e?.message || e));
-      }
+    if (onlineEls.btnCreate) onlineEls.btnCreate.onclick = () => {
+      const code = _randCode(6);
+      if (onlineEls.inputCode) onlineEls.inputCode.value = code;
+      _show(onlineEls.joinPanel, false);
+      onlineConnectToRoom(code, true);
     };
 
-    if (onlineEls.btnConnect) onlineEls.btnConnect.onclick = async () => {
+    if (onlineEls.btnConnect) onlineEls.btnConnect.onclick = () => {
       const code = (onlineEls.inputCode?.value || '').trim().toUpperCase();
       if (!code) return;
-      try {
-        _setOnlineStatus("Connexion au salon…");
-        const joined = await onlineJoinRoom(code);
-        if (!joined) return;
-        online.objectId = joined.objectId;
-        await onlineConnectToRoom(code, false);
-      } catch (e) {
-        _setOnlineStatus("Erreur connexion : " + (e?.message || e));
-      }
+      onlineConnectToRoom(code, false);
     };
 
-    
-if (onlineEls.btnStart) onlineEls.btnStart.onclick = async () => {
-  try {
-    // L'hôte lance la partie quand 2 joueurs sont connectés
-    variant = variant || 'TIDDEST-no-diag';
-    humanPlayerId = online.role || 1;
-    aiPlayerId = null;
-    startGame();
-    await onlineStartMatch(); // pousse l'état initial dans Back4App
-    showScreen('game-area');
-  } catch (e) {
-    _setOnlineStatus("Erreur lancement : " + (e?.message || e));
-  }
-};
-if (onlineEls.btnCopy) onlineEls.btnCopy.onclick = async () => {
+    if (onlineEls.btnCopy) onlineEls.btnCopy.onclick = async () => {
       const c = online.room || onlineEls.roomCode?.textContent || '';
       try { await navigator.clipboard.writeText(c); _setOnlineStatus("Code copié ✅"); } catch(_) {}
     };
   });
 }
 
-function onlineConnectToRoom_WS(code, creating) {
-  const url = _wsUrl(code);
-  if (!url) { _setOnlineStatus(t('onlineNotConfigured',"Le serveur en ligne n'est pas configuré.")); return; }
-
-  onlineDisconnect();
-  online.room = code;
-  _setOnlineStatus("Connexion au salon " + code + "…");
-  _show(onlineEls.roomCodeRow, true);
-  if (onlineEls.roomCode) onlineEls.roomCode.textContent = code;
-  _show(onlineEls.btnStart, false);
-
-  const ws = new WebSocket(url);
-  online.ws = ws;
-
-  ws.onopen = () => {
-    online.connected = true;
-    onlineSend('hello', { creating: !!creating, player1Name, player2Name });
-  };
-  ws.onclose = () => {
-    online.connected = false;
-    _setOnlineStatus("Déconnecté.");
-    _show(onlineEls.btnStart, false);
-  };
-  ws.onerror = () => { _setOnlineStatus("Erreur réseau (WebSocket)."); };
-
-  ws.onmessage = (ev) => {
-    const msg = safeJSONParse(ev.data, null);
-    if (!msg || typeof msg !== 'object') return;
-
-    if (msg.type === 'welcome') {
-      online.role = msg.role || null;
-      online.isHost = !!msg.isHost;
-      _setOnlineStatus("Connecté. Tu es Joueur " + (online.role || '?') + (online.isHost ? " (hôte)" : ""));
-    }
-
-    if (msg.type === 'ready') {
-      online.ready = true;
-      _setOnlineStatus("2 joueurs connectés. " + (online.isHost ? "Tu peux lancer la partie." : "En attente du lancement…"));
-      _show(onlineEls.btnStart, !!online.isHost);
-
-      if (onlineEls.btnStart) onlineEls.btnStart.onclick = () => {
-        variant = variant || 'TIDDEST-no-diag';
-        humanPlayerId = online.role || 1;
-        aiPlayerId = null;
-        startGame();
-        onlineSendState('start');
-        showScreen('game-area');
-      };
-    }
-
-    if (msg.type === 'state') {
-      onlineApplyState(msg);
-      showScreen('game-area');
-    }
-
-    if (msg.type === 'info' && msg.text) _setOnlineStatus(msg.text);
-  };
+function onlineConnectToRoom(code, creating) {
+  // Back4App (no LiveQuery) implementation — defined above
+  return onlineConnectToRoom_Back4App(code, creating);
 }
 document.querySelectorAll('.difficulty-btn').forEach(btn => btn.addEventListener('click', () => {
 aiDifficulty = parseInt(btn.dataset.level);
