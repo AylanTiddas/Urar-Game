@@ -4884,6 +4884,164 @@ body.replay-active .replay-badge {
                 inset 0 0 min(2vw, 10px) rgba(255,0,0,0.25);
   }
 }
+
+
+/* ============================================================
+   Online lobby (Multijoueur) — UI refresh
+   ============================================================ */
+.online-lobby .online-subtitle{
+  margin-top:-0.4rem;
+  opacity:0.86;
+  max-width: 60ch;
+  text-align:center;
+}
+.online-grid{
+  width:100%;
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-top: 10px;
+}
+@media (min-width: 820px){
+  .online-grid{ grid-template-columns: 1fr 1fr; }
+}
+.online-card{
+  width:100%;
+  background: rgba(0,0,0,0.38);
+  border: 1.5px solid rgba(240,200,80,0.35);
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: inset 0 0 14px rgba(0,0,0,0.35), 0 10px 24px rgba(0,0,0,0.25);
+  backdrop-filter: blur(3px);
+}
+.online-card-header{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-bottom: 10px;
+}
+.online-card-title{
+  font-family: var(--font-title);
+  color: var(--text-gold);
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+.online-card-desc{
+  opacity: 0.78;
+  font-size: 0.95rem;
+}
+.online-label{
+  display:block;
+  font-weight: 800;
+  margin: 8px 0 6px;
+}
+.online-input{
+  width:100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(240,200,80,0.35);
+  background: rgba(0,0,0,0.35);
+  color: var(--text-main);
+  outline: none;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.35);
+}
+.online-input:focus{
+  border-color: rgba(0,255,255,0.7);
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.35), 0 0 0 3px rgba(0,255,255,0.18);
+}
+.online-hint{
+  margin-top: 8px;
+  opacity: 0.75;
+  font-size: 0.92rem;
+}
+.online-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap: wrap;
+  justify-content:center;
+}
+.online-action.option-btn{
+  min-width: min(220px, 90vw);
+  max-width: 320px;
+}
+.online-join{
+  margin-top: 10px;
+}
+.online-status{
+  margin-top: 14px;
+  text-align:left;
+}
+.online-status-head{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.online-status-title{
+  font-weight: 900;
+}
+.online-status-text{
+  opacity: 0.86;
+}
+.online-players{
+  display:flex;
+  gap:10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.online-player-slot{
+  flex:1;
+  min-width: min(210px, 100%);
+  display:flex;
+  gap:10px;
+  align-items:center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px dashed rgba(240,200,80,0.35);
+  background: rgba(0,0,0,0.22);
+}
+.online-player-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--stone-dark);
+  background: rgba(240,200,80,0.95);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+}
+.online-player-name{
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.online-roomcode-row{
+  margin-top: 12px;
+}
+.online-roomcode{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin-top: 8px;
+}
+.online-roomcode-code{
+  font-weight: 1000;
+  letter-spacing: 0.20em;
+  font-size: 1.15rem;
+}
+.online-copy{
+  border: 1px solid rgba(240,200,80,0.45);
+  background: rgba(0,0,0,0.25);
+}
+.online-copy:hover{
+  background: rgba(240,200,80,0.12);
+}
+.online-start.option-btn{
+  width:100%;
+  margin-top: 12px;
+}
+
 </style>
 <style nonce="tiddas">
 /* =========================================================
@@ -8071,52 +8229,88 @@ Mêmes règles que TIDDEST. Victoire inversée: gagnez en perdant tous vos pions
 </div>
 <button class="back-btn" data-i18n="backToVersions" id="back-to-versions-btn">Retour aux versions</button>
 </div>
-<div class="selection-area" id="online-lobby-area">
+<div class="selection-area online-lobby" id="online-lobby-area">
   <h2 data-i18n="onlineTitle">Multijoueur en ligne</h2>
-  <p style="margin-top:-6px; opacity:.85" data-i18n="onlineSubtitle">Créez un salon et partagez le code, ou rejoignez un salon existant.</p>
-  <div class="options-group" style="gap:12px">
-    <div style="width:100%; display:flex; gap:10px; flex-wrap:wrap; justify-content:center">
-      <button class="option-btn" id="online-create-room">
-        <span aria-hidden="true" class="icon">➕</span>
-        <span data-i18n="onlineCreate">Créer un salon</span>
-        <span data-i18n="onlineCreateDesc">Génère un code</span>
-      </button>
-      <button class="option-btn" id="online-join-room">
-        <span aria-hidden="true" class="icon">🔑</span>
-        <span data-i18n="onlineJoin">Rejoindre</span>
-        <span data-i18n="onlineJoinDesc">Entrer un code</span>
-      </button>
-    </div>
+  <p class="online-subtitle" data-i18n="onlineSubtitle">Créez un salon et partagez le code, ou rejoignez un salon existant.</p>
 
-    <div id="online-join-panel" style="display:none; width:100%; max-width:420px; margin: 0 auto; text-align:left">
-      <label style="display:block; font-weight:700; margin: 10px 0 6px" data-i18n="onlineRoomCode">Code du salon</label>
-      <input id="online-room-code" inputmode="latin" autocomplete="off" spellcheck="false"
-             placeholder="ABC123" style="width:100%; padding:12px 14px; border-radius:14px; border:1px solid rgba(0,0,0,.12); font-size:1rem; text-transform:uppercase">
-      <button class="option-btn" id="online-connect" style="margin-top:10px; width:100%">
-        <span aria-hidden="true" class="icon">🔌</span>
-        <span data-i18n="onlineConnect">Connexion</span>
-        <span data-i18n="onlineConnectDesc">Se connecter au salon</span>
-      </button>
-    </div>
-
-    <div id="online-status" style="width:100%; max-width:520px; margin: 6px auto 0; padding:12px 14px; border-radius:14px; border:1px dashed rgba(0,0,0,.22); text-align:left">
-      <div style="font-weight:800" data-i18n="onlineStatusTitle">Statut</div>
-      <div id="online-status-text" style="opacity:.85">—</div>
-      <div id="online-roomcode-row" style="margin-top:8px; display:none">
-        <div style="opacity:.75; font-size:.92rem" data-i18n="onlineShare">Partagez ce code :</div>
-        <div style="display:flex; gap:10px; align-items:center; margin-top:6px">
-          <div id="online-roomcode" style="font-weight:900; letter-spacing:.18em; font-size:1.15rem">—</div>
-          <button class="toolbar-btn" id="online-copy-code" type="button" style="padding:8px 10px; border-radius:12px">📋</button>
-        </div>
+  <div class="online-grid">
+    <div class="online-card online-card-profile">
+      <div class="online-card-header">
+        <div class="online-card-title">Profil</div>
+        <div class="online-card-desc">Ton pseudo sera affiché à l’adversaire</div>
       </div>
-      <button class="option-btn" id="online-start" style="margin-top:12px; display:none; width:100%">
-        <span aria-hidden="true" class="icon">▶️</span>
-        <span data-i18n="onlineStart">Lancer la partie</span>
-        <span data-i18n="onlineStartDesc">Quand 2 joueurs sont connectés</span>
-      </button>
+      <label class="online-label" for="online-your-name">Ton nom</label>
+      <input class="online-input" id="online-your-name" maxlength="24" autocomplete="nickname" inputmode="text"
+             placeholder="Ex: Boussad" />
+      <div class="online-hint">Ce nom est mémorisé sur ton appareil.</div>
+    </div>
+
+    <div class="online-card online-card-room">
+      <div class="online-card-header">
+        <div class="online-card-title">Salon</div>
+        <div class="online-card-desc">Crée un code ou rejoins un code existant</div>
+      </div>
+
+      <div class="online-actions">
+        <button class="option-btn online-action" id="online-create-room" type="button">
+          <span aria-hidden="true" class="icon">➕</span>
+          <span data-i18n="onlineCreate">Créer un salon</span>
+          <span data-i18n="onlineCreateDesc">Génère un code</span>
+        </button>
+
+        <button class="option-btn online-action" id="online-join-room" type="button">
+          <span aria-hidden="true" class="icon">🔑</span>
+          <span data-i18n="onlineJoin">Rejoindre</span>
+          <span data-i18n="onlineJoinDesc">Entrer un code</span>
+        </button>
+      </div>
+
+      <div id="online-join-panel" class="online-join" style="display:none;">
+        <label class="online-label" for="online-room-code" data-i18n="onlineRoomCode">Code du salon</label>
+        <input class="online-input" id="online-room-code" inputmode="latin" autocomplete="off" spellcheck="false"
+               placeholder="ABC123" style="text-transform:uppercase" />
+        <button class="option-btn online-action online-connect" id="online-connect" type="button">
+          <span aria-hidden="true" class="icon">🔌</span>
+          <span data-i18n="onlineConnect">Connexion</span>
+          <span data-i18n="onlineConnectDesc">Se connecter au salon</span>
+        </button>
+      </div>
     </div>
   </div>
-  <button class="back-btn" data-i18n="backToModes" id="back-to-modes-from-online-btn">Retour aux modes</button>
+
+  <div id="online-status" class="online-card online-status">
+    <div class="online-status-head">
+      <div class="online-status-title" data-i18n="onlineStatusTitle">Statut</div>
+      <div id="online-status-text" class="online-status-text">—</div>
+    </div>
+
+    <div class="online-players">
+      <div class="online-player-slot">
+        <span class="online-player-badge">J1</span>
+        <span id="online-p1-name" class="online-player-name">—</span>
+      </div>
+      <div class="online-player-slot">
+        <span class="online-player-badge">J2</span>
+        <span id="online-p2-name" class="online-player-name">—</span>
+      </div>
+    </div>
+
+    <div id="online-roomcode-row" class="online-roomcode-row" style="display:none;">
+      <div class="online-roomcode-label" data-i18n="onlineShare">Partagez ce code :</div>
+      <div class="online-roomcode">
+        <div id="online-roomcode" class="online-roomcode-code">—</div>
+        <button class="toolbar-btn online-copy" id="online-copy-code" type="button" aria-label="Copier le code">📋</button>
+      </div>
+    </div>
+
+    <button class="option-btn online-action online-start" id="online-start" style="display:none;" type="button">
+      <span aria-hidden="true" class="icon">▶️</span>
+      <span data-i18n="onlineStart">Lancer la partie</span>
+      <span data-i18n="onlineStartDesc">Quand 2 joueurs sont connectés</span>
+    </button>
+  </div>
+
+  <button class="back-btn" data-i18n="backToModes" id="back-to-modes-from-online-btn" type="button">Retour aux modes</button>
 </div>
 <div class="selection-area" id="ai-difficulty-selection-area">
 <h2 data-i18n="chooseAIDifficulty">Choisir la difficulté de l'ordinateur</h2>
@@ -8829,6 +9023,19 @@ function _getOrCreatePlayerId() {
 }
 const onlinePlayerId = _getOrCreatePlayerId();
 
+const ONLINE_NAME_KEY = "tiddas_online_name_v1";
+function _getOnlineNameRaw() {
+  try { return (onlineEls.inputName?.value || localStorage.getItem(ONLINE_NAME_KEY) || "").trim(); } catch(_) { return ""; }
+}
+function _getOnlineNameSafe(fallback) {
+  const raw = _getOnlineNameRaw();
+  const n = normalizeName(raw, "");
+  if (!n) return fallback || "";
+  try { localStorage.setItem(ONLINE_NAME_KEY, n); } catch(_) {}
+  if (onlineEls.inputName && onlineEls.inputName.value !== n) onlineEls.inputName.value = n;
+  return n;
+}
+
 let online = {
   matchId: null,
   room: null,
@@ -8845,7 +9052,8 @@ let online = {
 const onlineEls = {
   area: null, statusText: null, roomCodeRow: null, roomCode: null,
   btnCreate: null, btnJoin: null, joinPanel: null, inputCode: null,
-  btnConnect: null, btnStart: null, btnCopy: null, btnBack: null
+  btnConnect: null, btnStart: null, btnCopy: null, btnBack: null,
+  inputName: null, p1Name: null, p2Name: null
 };
 
 function _isBack4AppConfigured() {
@@ -8910,6 +9118,11 @@ function _applyLobbyStateFromMatch(match) {
   const p1 = match.get('p1Id') || null;
   const p2 = match.get('p2Id') || null;
 
+  const p1Name = match.get('p1Name') || null;
+  const p2Name = match.get('p2Name') || null;
+  if (onlineEls.p1Name) onlineEls.p1Name.textContent = p1Name || '—';
+  if (onlineEls.p2Name) onlineEls.p2Name.textContent = p2Name || '—';
+
   // Determine role if not already set
   if (!online.role) {
     if (p1 === onlinePlayerId) { online.role = 1; online.isHost = true; }
@@ -8943,7 +9156,7 @@ function _startPolling() {
         if (payload && payload.state) {
           onlineApplyState(payload);
           // If we received game state, jump into the game UI
-          if (typeof showScreen === 'function') showScreen('game-area');
+          if (typeof showScreen === 'function') showScreen('game-play-area');
         }
       }
     } catch (e) {
@@ -8978,7 +9191,10 @@ async function onlineConnectToRoom_Back4App(code, creating) {
       match.set('code', code);
       match.set('status', 'waiting');
       match.set('p1Id', onlinePlayerId);
+      match.set('p1Name', _getOnlineNameSafe('Joueur 1'));
       match.set('p2Id', null);
+      match.set('p2Name', null);
+      match.set('variant', variant || 'TIDDEST-no-diag');
       match.set('rev', 0);
       match.set('payload', null);
 
@@ -9005,10 +9221,14 @@ async function onlineConnectToRoom_Back4App(code, creating) {
       // If same device rejoining
       if (p1 === onlinePlayerId) {
         online.role = 1; online.isHost = true;
+        // best-effort: store name if missing
+        if (!match.get('p1Name')) { match.set('p1Name', _getOnlineNameSafe('Joueur 1')); await match.save(); }
       } else if (p2 === onlinePlayerId) {
         online.role = 2; online.isHost = false;
+        if (!match.get('p2Name')) { match.set('p2Name', _getOnlineNameSafe('Joueur 2')); await match.save(); }
       } else if (!p2) {
         match.set('p2Id', onlinePlayerId);
+        match.set('p2Name', _getOnlineNameSafe('Joueur 2'));
         if (status === 'waiting') match.set('status', 'ready');
         await match.save();
         online.role = 2; online.isHost = false;
@@ -9027,7 +9247,7 @@ async function onlineConnectToRoom_Back4App(code, creating) {
       if (payload && payload.state) {
         online.lastSeenRev = Number(match.get('rev') || 0);
         onlineApplyState(payload);
-        if (typeof showScreen === 'function') showScreen('game-area');
+        if (typeof showScreen === 'function') showScreen('game-play-area');
       }
     }
 
@@ -9073,6 +9293,56 @@ function onlineSendState(reason='sync') {
       if (onlineEls.statusText) _setOnlineStatus("Erreur d'envoi. Vérifie ta connexion Back4App.");
     }
   })();
+}
+
+async function onlineStartMatch_Back4App() {
+  if (gameMode !== 'online') gameMode = 'online';
+  if (!online.connected || !online.matchId) { _setOnlineStatus("Pas de salon actif."); return; }
+  if (!online.isHost) { _setOnlineStatus("Seul l’hôte peut lancer la partie."); return; }
+  if (!_ensureParseReady()) { _setOnlineStatus("Back4App n'est pas prêt."); return; }
+
+  try {
+    const match = await _fetchMatchById(online.matchId);
+
+    const p1 = match.get('p1Id') || null;
+    const p2 = match.get('p2Id') || null;
+    if (!(p1 && p2)) { _setOnlineStatus("Attends que 2 joueurs soient connectés."); return; }
+
+    // Sync names from DB (or fallback)
+    const p1Name = match.get('p1Name') || translations[currentLanguage]?.defaultPlayer1 || 'Joueur 1';
+    const p2Name = match.get('p2Name') || translations[currentLanguage]?.defaultPlayer2 || 'Joueur 2';
+
+    // Variant from DB if present
+    const v = match.get('variant') || variant || 'TIDDEST-no-diag';
+    if (v && variantConfig[v]) variant = v;
+
+    // Init a fresh game state (no setup screen for online)
+    clearSave();
+    hideSaveNotification?.();
+
+    state = initState();
+    moveHistory = [];
+    boardPositionHistory = new Map();
+    forbiddenBoardPositions = new Set();
+
+    aiPlayerId = null;
+    humanPlayerId = online.role || 1;
+
+    player1Name = p1Name;
+    player2Name = p2Name;
+
+    updateGameInfoDisplay?.();
+    showScreen('game-play-area');
+    renderAll?.();
+    triggerNextAction?.();
+
+    // Persist room status + initial payload
+    onlineSendState('start');
+    _setOnlineStatus("Partie lancée ✅");
+  } catch (e) {
+    console.error(e);
+    _setOnlineStatus("Erreur lancement : " + (e?.message || String(e)));
+  }
 }
 
 function onlineApplyState(msg) {
@@ -9850,19 +10120,19 @@ ariaReplayInfo: "Talɣut",
 woSubDefeat: "— Taggara n wurar —",
 woSubVictory: "— Rbeḥ —",
 
-onlineTitle: "Aṭas n yimeɣri s uẓeṭṭa",
-onlineSubtitle: "Rnu aserreɣ u beqqeḍ tangalt, neɣ kcem ɣer yiwen.",
-onlineCreate: "Rnu aserreɣ",
-onlineCreateDesc: "Yessefru tangalt",
+onlineTitle: "Urar d umeddakul s lebɛid",
+onlineSubtitle: "Bnu taslaḍt, teceyyeɛeḍ-as tasarut, neɣ rnu ɣer tin umeddakul-ik.",
+onlineCreate: "bnu taslaḍt",
+onlineCreateDesc: "Ceyyeɛ tasarut",
 onlineJoin: "Kcem",
-onlineJoinDesc: "Sekcem tangalt",
-onlineRoomCode: "Tangalt n userreɣ",
+onlineJoinDesc: "Sekcem tasarut",
+onlineRoomCode: "Tasarut ",
 onlineConnect: "Tuqqna",
-onlineConnectDesc: "Kcem ɣer userreɣ",
+onlineConnectDesc: "qqim ɣer teslaḍt",
 onlineStatusTitle: "Addad",
-onlineShare: "Beqqeḍ tangalt-a :",
+onlineShare: "awi tasarut-a :",
 onlineStart: "Bdu urar",
-onlineStartDesc: "Mi yella 2 n yimeɣri",
+onlineStartDesc: "Mi llan 2 yimyuraren",
 notYourTurn: "Mačči d nnuba-k.",},
 en: {
 playSpectator: "Spectator Mode",
@@ -14898,6 +15168,9 @@ if (onlineBtn) {
     onlineEls.btnStart = document.getElementById('online-start');
     onlineEls.btnCopy = document.getElementById('online-copy-code');
     onlineEls.btnBack = document.getElementById('back-to-modes-from-online-btn');
+    onlineEls.inputName = document.getElementById('online-your-name');
+    onlineEls.p1Name = document.getElementById('online-p1-name');
+    onlineEls.p2Name = document.getElementById('online-p2-name');
 
     _setOnlineStatus(_isBack4AppConfigured() ? "Choisis : créer ou rejoindre un salon." : t('onlineNotConfigured', "Back4App n'est pas configuré (clés manquantes)."));
 
@@ -14927,6 +15200,19 @@ if (onlineBtn) {
       const c = online.room || onlineEls.roomCode?.textContent || '';
       try { await navigator.clipboard.writeText(c); _setOnlineStatus("Code copié ✅"); } catch(_) {}
     };
+
+    // Load & persist the local nickname (stored locally)
+    try {
+      const savedName = localStorage.getItem(ONLINE_NAME_KEY) || '';
+      if (onlineEls.inputName && !onlineEls.inputName.value) onlineEls.inputName.value = savedName;
+      if (onlineEls.inputName) {
+        onlineEls.inputName.addEventListener('input', () => {
+          try { localStorage.setItem(ONLINE_NAME_KEY, normalizeName(onlineEls.inputName.value, '')); } catch(_) {}
+        });
+      }
+    } catch(_) {}
+
+    if (onlineEls.btnStart) onlineEls.btnStart.onclick = () => { onlineStartMatch_Back4App(); };
   });
 }
 
