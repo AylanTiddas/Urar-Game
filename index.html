@@ -8345,6 +8345,8 @@ Mêmes règles que TIDDEST. Victoire inversée: gagnez en perdant tous vos pions
       <div class="online-roomcode">
         <div id="online-roomcode" class="online-roomcode-code">—</div>
         <button class="toolbar-btn online-copy" id="online-copy-code" type="button" aria-label="Copier le code" data-i18n-aria-label="onlineCopyCodeAria">📋</button>
+        <button class="toolbar-btn online-copy" id="online-copy-link" type="button" aria-label="Copier le lien" data-i18n-aria-label="onlineCopyLinkAria">🔗</button>
+        <button class="toolbar-btn online-copy" id="online-share-link" type="button" aria-label="Partager" data-i18n-aria-label="onlineShareLinkAria" style="display:none;">📤</button>
       </div>
     </div>
 
@@ -9169,7 +9171,7 @@ let online = {
 const onlineEls = {
   area: null, statusText: null, roomCodeRow: null, roomCode: null,
   btnCreate: null, btnJoin: null, joinPanel: null, inputCode: null,
-  btnConnect: null, btnStart: null, btnCopy: null, btnBack: null,
+  btnConnect: null, btnStart: null, btnCopy: null, btnCopyLink: null, btnShareLink: null, btnBack: null,
   inputName: null, p1Name: null, p2Name: null,
   recentWrap: null, recentList: null, btnRejoinLast: null
 };
@@ -10134,7 +10136,7 @@ bessifTitle: "Učči Bessif",
 bessifDesc: "Am ilugan n TIDDEST, maca yerbeḥ win i wummi mmeččen ileqqafen.",
 howToPlay: "Amek tebɣiḍ ad turareḍ ?",
 playOnline: "Urar s internet",
-playOnlineDesc: "Rnu neɣ kcem ɣer tɣuri",
+playOnlineDesc: "Qqim ɣer teslaḍt d umeddakel ibaɛden ",
 playAI: "Urar mgal aselkim",
 playAIDesc: "Urar i yiman-ik",
 playOffline: "Urar war internet",
@@ -10221,7 +10223,7 @@ rulesBessifForcedMove: "Ur d ak d-iṣaḥ ara ad tneqleḍ aleqqaf ɣer wanda u
 footerHeritage: "Idles n yimaziɣen • Urar Aqbuṛ n Yeqbayliyen",
 footerCreator: "Iga-t",
 congratulations: "Ayuuuuz!",
-winnerMessage: "yerbeḥ !",
+winnerMessage: "i yerbeḥen!",
 replay: "Ɛiwed urar",
 statusPlayerTurn: "D nnuba n",
 statusChooseCapture: "fren aleqqaf n",
@@ -10242,7 +10244,7 @@ statusChooseOpponentPieceToCapture: "Ilaq-ak ad teferneḍ aleqqaf n WEXṢIM-IK
 aiCannotMove: "Aselkim yeḥbes, yexṣer !",
 statusConsecutiveBlocked: "Aleqqaf-a inaqel 3 tikkal tin ɣef tin! urar wayed.",
 youLost: "Txesreḍ 😭",
-aiWinsMessage: "yerbeḥ !",
+aiWinsMessage: "i yerbeḥen !",
 surrenderConfirm: "Tebɣiḍ ad tefkeḍ Mayna?",
 surrenderMessage: "yefka Mayna !",
 stats: "Igemmaḍ",
@@ -10821,6 +10823,18 @@ if (oCopy) {
   oCopy.setAttribute('aria-label', lbl);
   oCopy.title = lbl;
 }
+const oCopyLink = document.getElementById('online-copy-link');
+if (oCopyLink) {
+  const lbl = tr.onlineCopyLinkAria || 'Copier le lien';
+  oCopyLink.setAttribute('aria-label', lbl);
+  oCopyLink.title = lbl;
+}
+const oShareLink = document.getElementById('online-share-link');
+if (oShareLink) {
+  const lbl = tr.onlineShareLinkAria || 'Partager';
+  oShareLink.setAttribute('aria-label', lbl);
+  oShareLink.title = lbl;
+}
 // ── Color section label (mode-aware) ────────────────────────────
 const colorSectionLabel = document.getElementById('color-section-label');
 if (colorSectionLabel) {
@@ -11052,7 +11066,38 @@ stopSpectatorMode();
 winnerOverlay.classList.remove('active', 'wo-defeat');
 const c = document.getElementById('wo-particles');
 if (c) c.innerHTML = '';
-showScreen('version-selection-area');
+const __urlRoomRaw = (() => {
+  try { return new URLSearchParams(window.location.search).get('room') || ''; } catch(_) { return ''; }
+})();
+const __urlRoomCode = String(__urlRoomRaw || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+
+if (__urlRoomCode) {
+  gameMode = 'online';
+  const __onlineBtn = document.getElementById('play-online-btn');
+  if (__onlineBtn) {
+    __onlineBtn.click();
+  } else {
+    showScreen('online-lobby-area');
+  }
+
+  let __tries = 0;
+  const __autoJoin = () => {
+    __tries++;
+    if (__tries > 120) return;
+    try {
+      if (!onlineEls || !onlineEls.inputCode || typeof onlineConnectToRoom !== 'function') {
+        requestAnimationFrame(__autoJoin);
+        return;
+      }
+      if (onlineEls.inputCode) onlineEls.inputCode.value = __urlRoomCode;
+      try { _show(onlineEls.joinPanel, false); } catch(_) {}
+      onlineConnectToRoom(__urlRoomCode, false);
+    } catch(_) {}
+  };
+  requestAnimationFrame(() => requestAnimationFrame(__autoJoin));
+} else {
+  showScreen('version-selection-area');
+}
 }
 
 function showStatusError(messageKey) {
@@ -15501,6 +15546,8 @@ if (onlineBtn) {
     onlineEls.btnConnect = document.getElementById('online-connect');
     onlineEls.btnStart = document.getElementById('online-start');
     onlineEls.btnCopy = document.getElementById('online-copy-code');
+    onlineEls.btnCopyLink = document.getElementById('online-copy-link');
+    onlineEls.btnShareLink = document.getElementById('online-share-link');
     onlineEls.btnBack = document.getElementById('back-to-modes-from-online-btn');
     onlineEls.inputName = document.getElementById('online-your-name');
     onlineEls.p1Name = document.getElementById('online-p1-name');
@@ -15565,6 +15612,31 @@ if (onlineBtn) {
       const c = online.room || onlineEls.roomCode?.textContent || '';
       try { await navigator.clipboard.writeText(c); _setOnlineStatus(t('onlineCodeCopied', 'Code copié ✅')); } catch(_) {}
     };
+
+    const _inviteLinkFromCode = (code) => {
+      const c = String(code || '').trim();
+      return `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(c)}`;
+    };
+
+    if (onlineEls.btnCopyLink) onlineEls.btnCopyLink.onclick = async () => {
+      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
+      if (!c) return;
+      const link = _inviteLinkFromCode(c);
+      try { await navigator.clipboard.writeText(link); _setOnlineStatus(t('onlineLinkCopied', 'Lien copié ✅')); } catch(_) {}
+    };
+
+    if (onlineEls.btnShareLink) {
+      const canShare = !!(navigator && typeof navigator.share === 'function');
+      onlineEls.btnShareLink.style.display = canShare ? '' : 'none';
+      if (canShare) onlineEls.btnShareLink.onclick = async () => {
+        const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
+        if (!c) return;
+        const link = _inviteLinkFromCode(c);
+        try {
+          await navigator.share({ title: document.title || 'Tiddas', text: t('onlineShareText', 'Rejoins mon salon Tiddas :'), url: link });
+        } catch(_) {}
+      };
+    }
 
     // Load & persist the local nickname (stored locally)
     try {
