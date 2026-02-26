@@ -8732,7 +8732,7 @@ body:has(.game-play-area.active) footer {
 </head>
 <body>
 <!-- ===== LANGUAGE SPLASH SCREEN ===== -->
-<div aria-label="Choix de la langue / Tifert n tutlayt" aria-modal="true" id="lang-splash" role="dialog">
+<div aria-label="Choix de la langue / Afran n tutlayt" aria-modal="true" id="lang-splash" role="dialog">
 <div class="splash-logo">
 TIDDAS
 </div>
@@ -8770,11 +8770,11 @@ Patrimoine Amazigh • Idles Amaziɣ
 <div class="settings-tray" id="settings-tray">
 <div class="stray-panel">
 <div class="stray-header">
-<span class="stray-title">⚙️ Paramètres</span>
+<span class="stray-title">⚙️ </span><span class="settings-label" data-i18n="btnSettings">Paramètres</span>
 <button aria-label="Fermer" class="stray-close-btn" id="stray-close-btn" type="button">✕</button>
 </div>
 <div class="stray-section">
-<span class="stray-section-label">Apparence</span>
+<span class="stray-section-label"><span class="Appearance-label" data-i18n="Appearancelabel">Apparence</span>
 <div class="stray-grid">
 <button aria-label="Thème" class="toolbar-btn stray-item" id="theme-btn" title="Changer de thème">
 <span class="stray-icon">🎨</span>
@@ -8787,7 +8787,7 @@ Patrimoine Amazigh • Idles Amaziɣ
 </div>
 </div>
 <div class="stray-section">
-<span class="stray-section-label">Langue</span>
+<span class="stray-section-label"><span class="Language-label" data-i18n="Languagelabel">Langue</span></span>
 <div class="language-selector">
 <span aria-hidden="true" class="icon">🗣️</span>
 <select aria-label="Langue / Tutlayt" id="language-select">
@@ -8798,7 +8798,7 @@ Patrimoine Amazigh • Idles Amaziɣ
 </div>
 </div>
 <div class="stray-section">
-<span class="stray-section-label">Jeu</span>
+<span class="stray-section-label"><span class="Game-label" data-i18n="Gamelabel">Jeu</span></span>
 <div class="stray-grid">
 <button aria-label="Glisser" aria-pressed="false" class="toolbar-btn stray-item" id="drag-btn" title="Déplacer les pions par glissement">
 <span class="stray-icon">🤚</span>
@@ -8972,7 +8972,7 @@ Mêmes règles que TIDDEST. Victoire inversée: gagnez en perdant tous vos pions
               </svg>
             </span>
             <span class="ol-action-main" data-i18n="onlineRecentRooms">Récents</span>
-            <span class="ol-action-sub" data-i18n="onlineRejoinLastDesc">Reprendre une partie</span>
+            <span class="ol-action-sub" data-i18n="onlineRejoin3LastDesc">Reprendre une partie</span>
           </button>
 
           <button class="ol-action-btn ol-action-rejoin" id="online-rejoin-last" style="display:none;" type="button">
@@ -11072,6 +11072,9 @@ lastGameLabel: "Dernière partie",
 btnTheme: "Thème",
 btnSound: "Son",
 btnSettings: "Paramètres",
+Appearancelabel: "Apparence",
+Gamelabel: "Jeu",
+Languagelabel: "Langue",
 btnDragMode: "Glisser",
 themeGlass: "Verre",
 themeContrast: "Contraste",
@@ -11165,6 +11168,7 @@ onlineErrorPrefix: "Erreur : {msg}",
 onlineRecentRooms: "Salons récents",
 onlineRejoinLast: "Reprendre le dernier salon",
 onlineRejoinLastDesc: "Reconnexion rapide",
+onlineRejoin3LastDesc: " 3 derniers salons",
 notYourTurn: "Ce n'est pas ton tour.",
 onlineInviteBtn: "Inviter un ami",
 onlinePanelCode: "Code seul",
@@ -11201,9 +11205,9 @@ statsOnlineMode: "En ligne",
 statsDraws: "Nuls",
 },
 kab: {
-backToMenu: "Aɣaram",
+backToMenu: "Umuɣ",
 onlineRematchHint: "Ttaṛ",
-onlineReadyRematch: "Wejdeɣ",
+onlineReadyRematch: "Beggseɣ",
 onlineReadyRematchOn: "Iyyan ✅",
 onlineRematchNote: "Initen ttbeddilen deg yal ttaṛ.",
 onlineRematchReadyToast: "Ttaṛ: iheyya. Ṛǧu axṣim-ik…",
@@ -11262,7 +11266,7 @@ onlineStatusCreatedHost: "Tessut tura. Bḍu asaru n wakuḍ u ṛǧu amgraw…"
 onlineStatusConnecting: "Ittwaqqen…",
 onlineStatusTwoPlayersHost: "Sin imdanen qqnen. Tzemreḍ ad tebduḍ.",
 onlineStatusTwoPlayersGuest: "Sin imdanen qqnen. Ṛǧu i usdukel ad yebdu…",
-onlineChooseAction: "Fren: xleq neɣ kcem ar salon.",
+onlineChooseAction: "Fren: Bnu taslaḍt neɣ qqim ɣer yiwet.",
 
 surrender: "Mayna",
 installApp: "Areṣṣi",
@@ -11290,6 +11294,9 @@ themeKabylie: "Taqbaylit",
 btnTheme: "Asentel",
 btnSound: "Ṣṣut",
 btnSettings: "Aseggem",
+Appearancelabel: "Udem",
+Languagelabel: "Tutlayt",
+Gamelabel: "Urar",
 btnDragMode: "Asezger",
 confirm: "Yahwa-yi",
 cancel: "ALA",
@@ -11344,7 +11351,7 @@ ephemeralMill: "Tlata S Ya !",
 ephemeralCaptureNormal: "Awi-d Wa !",
 ephemeralCaptureBessif: "Ddem wa !",
 ephemeralMovePhase: "Tallit n unaqel !",
-newGame: "Aɣaram",
+newGame: "Afrag",
 restartGame: "Ɛiwed",
 undoMove: "Uɣal",
 gameRulesTitle: "Ilugan n wurar",
@@ -11453,7 +11460,6 @@ xpLabel: "XP",
 lastGameLabel: "Urar aneggaru",
 btnTheme: "Asentel",
 btnSound: "Ṣṣut",
-btnSettings: "Aseggem",
 btnDragMode: "Ajuṛṛu",
 themeContrast: "Amgired",
 themeModern: "Amaynut",
@@ -11506,9 +11512,9 @@ onlineNameHint: "Isem-a yettwaḥraz .",
 onlineRoomTitle: "Taslaḍt",
 onlineRoomDesc: "Rnu tasarut neɣ kecem s yiwet yellan yakan",
 onlineSubtitle: "Bnu taslaḍt, teceyyeɛeḍ-as tasarut, neɣ rnu ɣer tin umeddakul-ik.",
-onlineCreate: "bnu taslaḍt",
+onlineCreate: "Bnu taslaḍt",
 onlineCreateDesc: "Ceyyeɛ tasarut",
-onlineJoin: "Kcem",
+onlineJoin: "Qqim ɣer taslaḍt",
 onlineJoinDesc: "Sekcem tasarut",
 onlineRoomCode: "Tasarut ",
 onlineConnect: "Tuqqna",
@@ -11543,9 +11549,10 @@ onlineWaitTwoPlayers: "Rǧu alamma qqnen-d i 2 yimyuraren.",
 onlineStartOK: "yebda wurar ✅",
 onlineStartErrorPrefix: "Tuccḍa n beddu : {msg}",
 onlineErrorPrefix: "Tuccḍa : {msg}",
-onlineRecentRooms: "tislaḍin n yakan",
+onlineRecentRooms: "Tislaḍin n yakan",
 onlineRejoinLast: "Uɣal ɣer teslaḍ-t taneggarut",
 onlineRejoinLastDesc: "Tuqqna s tazzla",
+onlineRejoin3LastDesc: " 3 temliliyin tineggura",
 notYourTurn: "Mačči d nnuba-k.",
 onlineInviteBtn: "📤 Ɛreḍ-d ameddakul",
 onlinePanelCode: "Tasarut kan",
@@ -11831,6 +11838,9 @@ lastGameLabel: "Last game",
 btnTheme: "Theme",
 btnSound: "Sound",
 btnSettings: "Settings",
+Appearancelabel: "Appearance",
+Gamelabel: "Game",
+Languagelabel: "Language",
 btnDragMode: "Drag",
 spectatorBadgeTxt: "👁 Spectator",
 btnResume: "Resume",
@@ -11918,6 +11928,7 @@ onlineErrorPrefix: "Error: {msg}",
 onlineRecentRooms: "Recent rooms",
 onlineRejoinLast: "Rejoin last room",
 onlineRejoinLastDesc: "Quick reconnect",
+onlineRejoin3LastDesc: " 3 last room",
 notYourTurn: "Not your turn.",
 onlineInviteBtn: "📤 Invite a friend",
 onlinePanelCode: "Code only",
@@ -17198,7 +17209,7 @@ if (onlineBtn) {
     const _setGlobal = (msg) => { if (statusGlobal) statusGlobal.textContent = msg || ''; };
 
     _setGlobal(_isBack4AppConfigured()
-      ? t('onlineChooseAction','Choisis : créer ou rejoindre un salon.')
+      ? t('onlineChooseAction')
       : t('onlineNotConfigured',"Back4App n'est pas configuré (clés manquantes)."));
 
     // Show/hide status card
