@@ -5786,1567 +5786,233 @@ body.replay-active .replay-badge {
 }
 
 
-/* ============================================================
-   Online lobby — Design épuré v3
-   Mobile-first · 2-col desktop · Premium graphisme
-   ============================================================ */
-
-/* ── Variables locales ────────────────────────────────────── */
+/* ── Online Lobby — Minimal ─────────────────────────── */
 .online-lobby {
-  --ol-gold:      #f0c850;
-  --ol-gold-dim:  rgba(240,200,80,0.18);
-  --ol-gold-line: rgba(240,200,80,0.22);
-  --ol-cyan:      #00e5ff;
-  --ol-cyan-dim:  rgba(0,229,255,0.10);
-  --ol-green:     #4cde80;
-  --ol-surface:   rgba(255,255,255,0.035);
-  --ol-surface2:  rgba(255,255,255,0.055);
-  --ol-border:    rgba(255,255,255,0.09);
-  --ol-border2:   rgba(255,255,255,0.06);
-  --ol-radius:    20px;
-  --ol-radius-sm: 13px;
-  --ol-radius-xs: 9px;
-  --ol-trans:     0.2s ease;
-  --ol-text-dim:  rgba(245,245,245,0.50);
-  --ol-num-color: rgba(240,200,80,0.38);
-  padding: clamp(12px, 4vw, 28px) clamp(10px, 4vw, 24px);
-  gap: 0;
+  --ol-gold: #f0c850;
+  display: none !important;
 }
-/* Ne pas écraser display:none — flex uniquement quand la section est active */
 .selection-area.active.online-lobby {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-/* ── En-tête ──────────────────────────────────────────────── */
-.ol-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 28px;
-  text-align: center;
-}
-.ol-header-icon {
-  width: 48px; height: 48px;
-  color: var(--ol-gold);
-  opacity: 0.7;
-  margin-bottom: 4px;
-  animation: ol-pulse 3s ease-in-out infinite;
-}
-@keyframes ol-pulse {
-  0%,100% { opacity: 0.5; transform: scale(1); }
-  50%      { opacity: 0.85; transform: scale(1.06); }
+  display: flex !important; flex-direction: column; gap: 10px;
+  padding: 20px 16px 24px; max-width: 400px; margin: 0 auto;
+  width: 100%;
 }
 .ol-title {
-  font-size: clamp(1.3rem, 4.5vw, 1.75rem);
-  font-weight: 900;
-  letter-spacing: -0.01em;
-  color: var(--text-main);
-  margin: 0;
-}
-.ol-subtitle {
-  font-size: clamp(0.82rem, 2.5vw, 0.92rem);
-  color: var(--ol-text-dim);
-  max-width: 38ch;
-  line-height: 1.5;
-  margin: 0;
+  font-family: var(--font-title, serif);
+  font-size: clamp(1rem, 4vw, 1.25rem);
+  color: var(--ol-gold); text-align: center; margin: 0 0 4px;
 }
 .ol-global-msg {
-  font-size: 0.85rem;
-  color: var(--ol-cyan);
-  min-height: 1.2em;
-  margin: 2px 0 0;
-  transition: opacity var(--ol-trans);
+  font-size: 0.82rem; color: rgba(245,245,245,0.6);
+  text-align: center; min-height: 1.2em; margin: 0;
+  font-family: var(--font-ui, sans-serif);
 }
-.ol-global-msg:empty { opacity: 0; }
-
-/* ── Layout corps ─────────────────────────────────────────── */
-.ol-body {
-  width: 100%;
-  max-width: 860px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
+/* Inputs */
+.ol-input, .ol-code-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(255,255,255,0.06);
+  border: 1.5px solid rgba(240,200,80,0.28);
+  border-radius: 12px; color: #f0f0f0;
+  font-size: 1rem; padding: 11px 14px; outline: none;
+  font-family: var(--font-ui, sans-serif);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-@media (min-width: 860px) {
-  .ol-body {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-    gap: 18px;
-  }
-}
-
-/* ── Sections ─────────────────────────────────────────────── */
-.ol-col-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.ol-section {
-  background: var(--ol-surface);
-  border: 1px solid var(--ol-border);
-  border-radius: var(--ol-radius);
-  padding: clamp(16px, 4vw, 22px);
-  position: relative;
-  overflow: hidden;
-  transition: border-color var(--ol-trans);
-}
-.ol-section::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 20px; right: 20px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ol-gold-line), transparent);
-  pointer-events: none;
-}
-.ol-section:focus-within { border-color: rgba(240,200,80,0.32); }
-
-/* ── Labels de section ────────────────────────────────────── */
-.ol-section-label {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ol-text-dim);
-  margin-bottom: 14px;
-}
-.ol-section-num {
-  font-size: 0.65rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: var(--ol-num-color);
-  font-variant-numeric: tabular-nums;
-}
-
-/* ── Input pseudo ─────────────────────────────────────────── */
-.ol-input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.ol-input-icon {
-  position: absolute;
-  left: 14px;
-  width: 18px; height: 18px;
-  color: var(--ol-text-dim);
-  pointer-events: none;
-  transition: color var(--ol-trans);
-}
-.ol-input-icon svg { width: 100%; height: 100%; display: block; }
-.ol-input {
-  width: 100%;
-  padding: 14px 14px 14px 44px;
-  border-radius: var(--ol-radius-sm);
-  border: 1.5px solid var(--ol-border);
-  background: rgba(0,0,0,0.28);
-  color: var(--text-main);
-  font-size: 1rem;
-  font-weight: 600;
-  outline: none;
-  transition: border-color var(--ol-trans), box-shadow var(--ol-trans);
-  min-width: 0;
-}
-.ol-input::placeholder { color: var(--ol-text-dim); }
-.ol-input:focus {
-  border-color: rgba(240,200,80,0.55);
+.ol-input:focus, .ol-code-input:focus {
+  border-color: rgba(240,200,80,0.6);
   box-shadow: 0 0 0 3px rgba(240,200,80,0.08);
 }
-.ol-input-wrap:focus-within .ol-input-icon { color: var(--ol-gold); }
-.ol-hint {
-  margin-top: 8px;
-  font-size: 0.78rem;
-  color: var(--ol-text-dim);
-}
-
-/* ── Boutons d'action Créer / Rejoindre / Récents ─────────── */
-.ol-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.ol-action-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px 10px;
-  min-height: 90px;
-  border-radius: var(--ol-radius-sm);
-  border: 1.5px solid var(--ol-border);
-  background: var(--ol-surface);
-  color: var(--text-main);
-  cursor: pointer;
-  text-align: center;
-  transition: background var(--ol-trans), border-color var(--ol-trans), transform 0.15s;
-  touch-action: manipulation;
+/* Divider */
+.ol-divider-or {
+  text-align: center; color: rgba(255,255,255,0.3);
+  font-size: 0.78rem; font-family: var(--font-ui, sans-serif);
   position: relative;
-  overflow: hidden;
 }
-.ol-action-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity var(--ol-trans);
-  pointer-events: none;
+.ol-divider-or::before, .ol-divider-or::after {
+  content: ''; position: absolute; top: 50%; width: 38%; height: 1px;
+  background: rgba(255,255,255,0.1);
 }
-.ol-action-create::after { background: radial-gradient(ellipse at center, rgba(240,200,80,0.12), transparent 70%); }
-.ol-action-join::after   { background: radial-gradient(ellipse at center, rgba(0,229,255,0.10), transparent 70%); }
-.ol-action-recent::after { background: radial-gradient(ellipse at center, rgba(76,222,128,0.10), transparent 70%); }
-.ol-action-rejoin::after { background: radial-gradient(ellipse at center, rgba(255,140,0,0.12), transparent 70%); }
-.ol-action-btn:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.18); }
-.ol-action-btn:hover::after { opacity: 1; }
-.ol-action-btn:active { transform: translateY(0); }
-.ol-action-btn.active {
-  border-color: rgba(240,200,80,0.5);
-  background: rgba(240,200,80,0.07);
+.ol-divider-or::before { left: 0; }
+.ol-divider-or::after  { right: 0; }
+/* Create button */
+.ol-big-btn {
+  width: 100%; padding: 13px 16px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(240,200,80,0.18), rgba(240,200,80,0.08));
+  border: 1.5px solid rgba(240,200,80,0.38); color: var(--ol-gold);
+  font-family: var(--font-title, serif); font-size: 1rem; font-weight: 700;
+  cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
 }
-.ol-action-icon {
-  width: 26px; height: 26px;
-  color: var(--ol-text-dim);
-}
-.ol-action-icon svg { width: 100%; height: 100%; display: block; }
-.ol-action-create .ol-action-icon { color: var(--ol-gold); }
-.ol-action-join   .ol-action-icon { color: var(--ol-cyan); }
-.ol-action-recent .ol-action-icon { color: var(--ol-green); }
-.ol-action-rejoin .ol-action-icon { color: #ff8c00; }
-.ol-action-main {
-  font-size: 0.88rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-.ol-action-sub {
-  font-size: 0.72rem;
-  color: var(--ol-text-dim);
-  line-height: 1.2;
-}
-@media (max-width: 380px) { .ol-action-sub { display: none; } }
-
-/* ── Panneaux accordéon ───────────────────────────────────── */
-.ol-panel {
-  overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.35s cubic-bezier(.4,0,.2,1), opacity 0.28s;
-  opacity: 0;
-  margin-top: 0;
-}
-.ol-panel.open {
-  max-height: 600px;
-  opacity: 1;
-  margin-top: 12px;
-}
-
-/* ── Panneau Créer ────────────────────────────────────────── */
-.ol-preview-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 20px;
-  border-radius: var(--ol-radius-sm);
-  background: rgba(240,200,80,0.05);
-  border: 1px solid rgba(240,200,80,0.28);
-}
-.ol-preview-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ol-text-dim);
-}
-.ol-preview-code-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.ol-preview-code {
-  font-size: clamp(2rem, 8vw, 2.8rem);
-  font-weight: 900;
-  letter-spacing: 0.3em;
-  color: var(--ol-gold);
-  text-shadow: 0 0 32px rgba(240,200,80,0.45);
-  font-variant-numeric: tabular-nums;
-}
-.ol-preview-dots { display: flex; gap: 6px; }
-.ol-preview-dots span {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--ol-gold);
-  opacity: 0.4;
-  animation: ol-dot-blink 1.4s ease-in-out infinite;
-}
-.ol-preview-dots span:nth-child(2) { animation-delay: 0.2s; }
-.ol-preview-dots span:nth-child(3) { animation-delay: 0.4s; }
-.ol-preview-dots span:nth-child(4) { animation-delay: 0.6s; }
-@keyframes ol-dot-blink {
-  0%,80%,100% { opacity: 0.25; }
-  40%          { opacity: 0.9; }
-}
-.ol-confirm-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  border-radius: var(--ol-radius-sm);
-  border: 1.5px solid rgba(240,200,80,0.55);
-  background: rgba(240,200,80,0.12);
-  color: var(--ol-gold);
-  font-weight: 900;
-  font-size: 0.92rem;
-  cursor: pointer;
-  transition: background var(--ol-trans), transform 0.15s;
-  touch-action: manipulation;
-  width: 100%;
-  justify-content: center;
-}
-.ol-confirm-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
-.ol-confirm-btn:hover { background: rgba(240,200,80,0.22); transform: translateY(-1px); }
-
-/* ── Panneau Rejoindre ────────────────────────────────────── */
-.ol-join-wrap { padding: 4px 0; }
-.ol-join-label {
-  font-size: 0.72rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ol-text-dim);
-  margin-bottom: 10px;
-}
-.ol-code-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-}
-.ol-code-input,
-.online-code-input.ol-code-input {
-  flex: 1;
-  min-width: 0;
-  padding: 16px 12px;
-  border-radius: var(--ol-radius-sm);
-  border: 1.5px solid var(--ol-border);
-  background: rgba(0,0,0,0.30);
-  color: var(--text-main);
-  outline: none;
-  font-size: clamp(1.4rem, 5vw, 1.75rem);
-  font-weight: 900;
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  text-align: center;
-  transition: border-color var(--ol-trans), box-shadow var(--ol-trans);
-   caret-color: var(--ol-gold);
-}
-.ol-code-input::placeholder { color: rgba(255,255,255,0.18); letter-spacing: 0.18em; }
-.ol-code-input:focus {
-  border-color: rgba(240,200,80,0.55);
-  box-shadow: 0 0 0 3px rgba(240,200,80,0.08);
-}
-.ol-code-input.input-valid { border-color: rgba(76,222,128,0.65); }
-.ol-code-input.input-error {
-  border-color: rgba(255,80,80,0.75);
-  animation: ol-shake .3s ease;
-}
-@keyframes ol-shake {
-  0%,100% { transform: translateX(0) }
-  25%     { transform: translateX(-4px) }
-  75%     { transform: translateX(4px) }
-}
+.ol-big-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(240,200,80,0.15); }
+.ol-big-btn:active { transform: translateY(0); }
+/* Join row */
+.ol-join-row { display: flex; gap: 8px; }
+.ol-join-row .ol-code-input { flex: 1; text-align: center; font-weight: 700; letter-spacing: 0.12em; font-size: 1.1rem; }
 .ol-connect-btn {
+  flex-shrink: 0; width: 46px; height: 46px; border-radius: 12px;
+  background: rgba(240,200,80,0.15); border: 1.5px solid rgba(240,200,80,0.35);
+  color: var(--ol-gold); font-size: 1.2rem; cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.ol-connect-btn:hover { background: rgba(240,200,80,0.28); transform: translateY(-1px); }
+.ol-connect-btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+/* Connected panel */
+#online-status { display: flex; flex-direction: column; gap: 8px; }
+.ol-status-line {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.85rem; color: rgba(245,245,245,0.7);
+  font-family: var(--font-ui, sans-serif);
+}
+.ol-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(255,255,255,0.25);
+  transition: background 0.3s;
+}
+.ol-dot.connected { background: #3ddc5a; box-shadow: 0 0 6px #3ddc5a; }
+/* Matchup */
+.ol-matchup {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--font-title, serif); font-size: 1rem; font-weight: 700;
+  color: #f0f0f0; padding: 8px 12px;
+  background: rgba(255,255,255,0.04); border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.ol-vs { color: rgba(240,200,80,0.6); font-size: 0.78rem; font-weight: 900; }
+/* Code row */
+.ol-code-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04); border-radius: 10px;
+}
+.ol-code-label { font-size: 0.75rem; color: rgba(245,245,245,0.4); font-family: var(--font-ui,sans-serif); }
+.ol-code-val {
+  flex: 1; font-family: var(--font-title, serif); font-size: 1.3rem;
+  font-weight: 900; letter-spacing: 0.18em; color: var(--ol-gold);
+}
+.ol-copy-btn {
+  background: rgba(240,200,80,0.1); border: 1px solid rgba(240,200,80,0.25);
+  border-radius: 8px; color: var(--ol-gold); width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s;
   flex-shrink: 0;
-  width: 52px;
-  border-radius: var(--ol-radius-sm);
-  border: none;
-  background: linear-gradient(135deg, #f0c850, #c89628);
-  color: #1a0e04;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.15s, filter 0.15s, opacity var(--ol-trans);
-  touch-action: manipulation;
 }
-.ol-connect-btn svg { width: 20px; height: 20px; }
-.ol-connect-btn:hover { transform: translateY(-2px); filter: brightness(1.1); }
-.ol-connect-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
-
-/* ── Panneau Récents ──────────────────────────────────────── */
-.ol-recent-header {
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ol-text-dim);
-  margin-bottom: 10px;
+.ol-copy-btn:hover { background: rgba(240,200,80,0.22); }
+.ol-copy-btn svg { width: 15px; height: 15px; }
+/* Invite button */
+.ol-invite-btn {
+  width: 100%; padding: 12px; border-radius: 14px;
+  background: linear-gradient(135deg, #e8b830, #c89010);
+  color: #1a0f00; font-family: var(--font-title, serif);
+  font-size: 1rem; font-weight: 800; border: none; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(200,144,16,0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
 }
-.online-recent-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.online-room-chip {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  align-items: center;
-  gap: 10px;
-  padding: 11px 14px;
-  border-radius: var(--ol-radius-sm);
-  border: 1px solid var(--ol-border);
-  background: var(--ol-surface);
-  color: var(--text-main);
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--ol-trans), border-color var(--ol-trans);
-  width: 100%;
-  min-height: 48px;
-  touch-action: manipulation;
-}
-.online-room-chip:hover { background: var(--ol-surface2); border-color: rgba(240,200,80,0.35); }
-.online-room-chip .chip-code { font-weight: 900; letter-spacing: 0.18em; color: var(--ol-gold); font-size: 0.9rem; }
-.online-room-chip .chip-vs { font-size: 0.82rem; font-weight: 700; opacity: 0.8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.online-room-chip .chip-vs em { font-style: normal; opacity: 0.55; }
-.online-room-chip .chip-result { font-size: 1rem; }
-.online-room-chip .chip-date { font-size: 0.7rem; opacity: 0.5; white-space: nowrap; font-weight: 700; }
-
-/* ── Colonne statut ───────────────────────────────────────── */
-.ol-col-status {
-  background: var(--ol-surface);
-  border: 1px solid var(--ol-border);
-  border-radius: var(--ol-radius);
-  padding: clamp(16px, 4vw, 22px);
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.ol-col-status::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 20px; right: 20px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ol-gold-line), transparent);
-  pointer-events: none;
-}
-
-/* ── Bannière de statut ─────────────────────────────────── */
-.ol-status-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--ol-border2);
-  margin-bottom: 16px;
-}
-.ol-status-dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-  background: var(--ol-text-dim);
-  flex-shrink: 0;
-  transition: background var(--ol-trans), box-shadow var(--ol-trans);
-}
-.ol-status-dot.connecting {
-  background: var(--ol-gold);
-  animation: ol-blink-dot 1s ease-in-out infinite;
-}
-.ol-status-dot.connected {
-  background: var(--ol-green);
-  box-shadow: 0 0 8px rgba(76,222,128,0.6);
-  animation: none;
-}
-@keyframes ol-blink-dot {
-  0%,100% { opacity: 0.4; }
-  50%      { opacity: 1; }
-}
-.ol-status-text {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--text-main);
-  line-height: 1.35;
-}
-
-/* ── Slots joueurs ────────────────────────────────────────── */
-.ol-players {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.ol-player {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 10px;
-  border-radius: var(--ol-radius-sm);
-  border: 1px dashed rgba(255,255,255,0.12);
-  background: rgba(0,0,0,0.15);
-  text-align: center;
-  position: relative;
-  transition: border-color var(--ol-trans), background var(--ol-trans);
-}
-.ol-player-avatar {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  background: var(--ol-gold-dim);
-  border: 1.5px solid rgba(240,200,80,0.35);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ol-gold);
-}
-.ol-player-avatar svg { width: 20px; height: 20px; display: block; }
-.ol-player-tag {
-  font-size: 0.65rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ol-text-dim);
-}
-.ol-player-name {
-  font-size: 0.88rem;
-  font-weight: 800;
-  color: var(--text-main);
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-.ol-player-status-dot {
-  position: absolute;
-  top: 8px; right: 8px;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.18);
-  transition: background var(--ol-trans);
-}
-.ol-versus {
-  font-size: 0.7rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: var(--ol-text-dim);
-  text-align: center;
-}
-
-/* ── Bloc partage ─────────────────────────────────────────── */
-.ol-share-block {
-  border-top: 1px solid var(--ol-border2);
-  padding-top: 14px;
-  margin-bottom: 14px;
-}
-.ol-share-label {
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--ol-text-dim);
-  margin-bottom: 10px;
-}
-.ol-share-code-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-.ol-share-code {
-  font-size: clamp(1.6rem, 5vw, 2rem);
-  font-weight: 900;
-  letter-spacing: 0.28em;
-  color: var(--ol-gold);
-  text-shadow: 0 0 28px rgba(240,200,80,0.38);
-  flex: 1;
-}
-.ol-icon-btn {
-  width: 38px; height: 38px;
-  border-radius: var(--ol-radius-xs);
-  border: 1px solid var(--ol-border);
-  background: var(--ol-surface);
-  color: var(--text-main);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background var(--ol-trans), border-color var(--ol-trans);
-  touch-action: manipulation;
-}
-.ol-icon-btn svg { width: 16px; height: 16px; display: block; }
-.ol-icon-btn:hover { background: var(--ol-surface2); border-color: rgba(255,255,255,0.18); }
-
-.ol-invite-toggle {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 14px;
-  border-radius: var(--ol-radius-sm);
-  border: 1px solid var(--ol-border);
-  background: var(--ol-surface);
-  color: var(--ol-cyan);
-  font-size: 0.88rem;
-  font-weight: 800;
-  cursor: pointer;
-  transition: background var(--ol-trans), border-color var(--ol-trans);
-  touch-action: manipulation;
-}
-.ol-invite-toggle svg:first-child { width: 16px; height: 16px; flex-shrink: 0; }
-.ol-invite-toggle span { flex: 1; text-align: left; }
-.ol-chevron { width: 12px; height: 12px; flex-shrink: 0; transition: transform var(--ol-trans); }
-.ol-invite-toggle[aria-expanded="true"] .ol-chevron { transform: rotate(180deg); }
-.ol-invite-toggle:hover { background: var(--ol-cyan-dim); border-color: rgba(0,229,255,0.3); }
-
-.ol-invite-panel {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 0.3s ease, opacity 0.25s;
-}
-.ol-invite-panel.open { max-height: 300px; opacity: 1; margin-top: 8px; }
-.ol-invite-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--ol-border2);
-}
-.ol-invite-row:last-child { border-bottom: none; }
-.ol-inv-label {
-  font-size: 0.78rem;
-  color: var(--ol-text-dim);
-  font-weight: 700;
-  white-space: nowrap;
-  min-width: 40px;
-}
-.ol-inv-value {
-  flex: 1;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--ol-gold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  padding: 0 4px;
-}
-.ol-inv-btn {
-  padding: 5px 12px;
-  border-radius: var(--ol-radius-xs);
-  border: 1px solid var(--ol-gold-line);
-  background: var(--ol-gold-dim);
-  color: var(--ol-gold);
-  font-weight: 800;
-  font-size: 0.78rem;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-  touch-action: manipulation;
-  transition: background var(--ol-trans);
-}
-.ol-inv-btn:hover { background: rgba(240,200,80,0.28); }
-.ol-inv-btn.copied { background: rgba(76,222,128,0.16); border-color: rgba(76,222,128,0.5); color: var(--ol-green); }
-.ol-inv-socials { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end; max-width:100%; }
-.ol-inv-socials .ol-inv-btn { flex:0 0 auto; }
-
-/* ── Revanche ─────────────────────────────────────────────── */
-.ol-rematch {
-  border: 1px solid var(--ol-border);
-  border-radius: var(--ol-radius-sm);
-  padding: 14px;
-  background: rgba(0,0,0,0.15);
-  margin-bottom: 14px;
-}
-.ol-rematch-title {
-  font-size: 0.72rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--ol-text-dim);
-  margin-bottom: 10px;
-}
-.ol-rematch-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
+.ol-invite-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(200,144,16,0.5); }
+.ol-invite-btn:active { transform: translateY(0); }
+/* Rematch */
+.ol-rematch-row { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.85rem; }
 .ol-rematch-chip {
-  flex: 1;
-  padding: 7px 10px;
-  border-radius: var(--ol-radius-xs);
-  border: 1px solid var(--ol-border);
-  background: var(--ol-surface);
-  font-weight: 900;
-  font-size: 0.82rem;
-  color: var(--text-main);
-  text-align: center;
-  transition: all var(--ol-trans);
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.15);
+  font-weight: 700; color: rgba(245,245,245,0.5); font-family: var(--font-ui,sans-serif);
+  transition: all 0.25s;
 }
-.ol-rematch-chip.ready {
-  border-color: rgba(76,222,128,0.5);
-  background: rgba(76,222,128,0.10);
-  color: var(--ol-green);
-}
-.ol-rematch-divider { color: var(--ol-text-dim); font-size: 1.2rem; }
+.ol-rematch-chip.ready { background: rgba(61,220,90,0.15); border-color: rgba(61,220,90,0.45); color: #3ddc5a; }
 .ol-rematch-btn {
-  width: 100%;
-  padding: 12px;
-  border-radius: var(--ol-radius-sm);
-  border: 1.5px solid rgba(240,200,80,0.35);
-  background: var(--ol-gold-dim);
-  color: var(--ol-gold);
-  font-weight: 900;
-  font-size: 0.9rem;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: background var(--ol-trans), transform 0.15s;
+  width: 100%; padding: 11px; border-radius: 12px;
+  background: rgba(255,255,255,0.07); border: 1.5px solid rgba(255,255,255,0.18);
+  color: #f0f0f0; font-family: var(--font-title,serif); font-size: 0.95rem;
+  font-weight: 700; cursor: pointer; transition: background 0.15s;
 }
-.ol-rematch-btn:hover { background: rgba(240,200,80,0.28); transform: translateY(-1px); }
-.ol-rematch-btn.active {
-  border-color: rgba(76,222,128,0.55);
-  background: rgba(76,222,128,0.12);
-  color: var(--ol-green);
+.ol-rematch-btn:hover { background: rgba(255,255,255,0.13); }
+/* Auto-start banner */
+#online-autostart-banner {
+  display: none; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 14px; border-radius: 12px;
+  background: rgba(61,220,90,0.1); border: 1px solid rgba(61,220,90,0.35);
+  color: #3ddc5a; font-family: var(--font-title,serif); font-size: 0.9rem; font-weight: 700;
 }
-.ol-rematch-note {
-  margin-top: 8px;
-  font-size: 0.76rem;
-  color: var(--ol-text-dim);
-  text-align: center;
+#online-autostart-banner.visible { display: flex; }
+.autostart-count { font-size: 1.4rem; font-weight: 900; min-width: 22px; text-align: center; }
+#autostart-cancel-btn {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 6px; color: rgba(255,255,255,0.5); font-size: 0.8rem;
+  padding: 2px 7px; cursor: pointer; margin-left: 4px;
 }
-
-/* ── Bouton Lancer ────────────────────────────────────────── */
+/* Start button */
 .ol-start-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 15px 20px;
-  border-radius: var(--ol-radius-sm);
-  border: none;
-  background: linear-gradient(135deg, #f0c850, #c89628);
-  color: #1a0e04;
-  font-weight: 900;
-  cursor: pointer;
-  touch-action: manipulation;
-  transition: transform 0.15s, filter 0.15s, opacity var(--ol-trans);
-  box-shadow: 0 6px 24px rgba(240,200,80,0.28);
-  position: relative;
-  overflow: hidden;
-  margin-top: auto;
+  width: 100%; padding: 13px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(61,220,90,0.2), rgba(0,180,60,0.12));
+  border: 1.5px solid rgba(61,220,90,0.45); color: #3ddc5a;
+  font-family: var(--font-title,serif); font-size: 1rem; font-weight: 800;
+  cursor: pointer; transition: transform 0.15s, box-shadow 0.15s;
 }
-.ol-start-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
-  pointer-events: none;
+.ol-start-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(61,220,90,0.25); }
+.ol-start-btn:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: none; }
+/* Recent rooms */
+.online-recent-list { display: flex; flex-direction: column; gap: 4px; }
+.online-room-chip {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px; cursor: pointer; width: 100%; text-align: left;
+  transition: background 0.15s;
 }
-.ol-start-btn:hover { transform: translateY(-2px); filter: brightness(1.07); }
-.ol-start-btn:active { transform: translateY(0); }
-.ol-start-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
-.ol-start-icon {
-  width: 22px; height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.ol-start-icon svg { width: 100%; height: 100%; display: block; }
-.ol-start-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
-}
-.ol-start-sub {
-  font-size: 0.72rem;
-  font-weight: 700;
-  opacity: 0.7;
-}
-
-/* ── Bouton Retour du lobby online : zone tactile renforcée ── */
+.online-room-chip:hover { background: rgba(255,255,255,0.08); }
+.chip-code { font-weight: 900; letter-spacing: 0.15em; color: var(--ol-gold); font-size: 0.9rem; }
+.chip-vs   { flex: 1; font-size: 0.8rem; color: rgba(245,245,245,0.5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-result { font-size: 0.9rem; }
+.chip-date { font-size: 0.7rem; opacity: 0.4; font-weight: 700; }
+/* Back button */
 #back-to-modes-from-online-btn {
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  -webkit-user-select: none;
-  min-height: 52px !important;
-  min-width: 120px;
-  padding: 0.85rem 1.6rem !important;
-  /* Agrandir la zone de clic réelle sans changer le visuel */
-  position: relative;
+  align-self: center; margin-top: 4px;
+  background: transparent; border: none;
+  color: rgba(245,245,245,0.45); font-size: 0.82rem;
+  cursor: pointer; padding: 6px; font-family: var(--font-ui,sans-serif);
 }
-#back-to-modes-from-online-btn::after {
-  content: "";
-  position: absolute;
-  inset: -8px -4px;
-}
-
-/* ── Thèmes clairs ────────────────────────────────────────── */
-[data-theme="kabylie"] .online-lobby,
-[data-theme="desert"]  .online-lobby {
-  --ol-surface:  rgba(0,0,0,0.04);
-  --ol-surface2: rgba(0,0,0,0.08);
-  --ol-border:   rgba(0,0,0,0.10);
-  --ol-border2:  rgba(0,0,0,0.07);
-  --ol-text-dim: rgba(30,22,10,0.48);
-}
-[data-theme="kabylie"] .ol-input,
-[data-theme="desert"]  .ol-input,
-[data-theme="kabylie"] .ol-code-input,
-[data-theme="desert"]  .ol-code-input { background: rgba(255,255,255,0.65); color: #1a1208; }
-[data-theme="kabylie"] .ol-player,
-[data-theme="desert"]  .ol-player { background: rgba(0,0,0,0.04); }
-[data-theme="kabylie"] .ol-rematch,
-[data-theme="desert"]  .ol-rematch { background: rgba(0,0,0,0.03); }
+#back-to-modes-from-online-btn:hover { color: rgba(245,245,245,0.8); }
 
 
-/* =========================================================
-   TIDDAS v6 – Pack UI/UX + Gameplay + Produit additions
-   (single-file patch)
-   ========================================================= */
+/* ── Name modal overlay ─────────────────────────────── */
+#online-name-modal-overlay {
+  position: fixed; inset: 0; z-index: 99998;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+#online-name-modal-overlay.visible { opacity: 1; pointer-events: auto; }
+.online-name-modal {
+  background: linear-gradient(145deg, #1e1510 0%, #120d08 100%);
+  border: 2px solid rgba(240,200,80,0.45);
+  border-radius: 22px;
+  padding: 28px 28px 22px;
+  max-width: 360px; width: calc(100% - 40px);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  text-align: center;
+  transform: scale(0.88) translateY(20px);
+  transition: transform 0.32s cubic-bezier(0.34,1.56,0.64,1);
+}
+#online-name-modal-overlay.visible .online-name-modal {
+  transform: scale(1) translateY(0);
+}
+.onm-sword { font-size: 2.5rem; margin-bottom: 6px; }
+.onm-challenger { font-family: var(--font-title, serif); font-size: 1.2rem; font-weight: 900; color: #f0c850; margin: 4px 0 2px; }
+.onm-kabyle { font-size: 0.9rem; color: rgba(240,200,80,0.7); margin-bottom: 4px; }
+.onm-subtitle { font-size: 0.8rem; color: rgba(255,255,255,0.45); margin-bottom: 16px; }
+.onm-input {
+  width: 100%; box-sizing: border-box;
+  background: rgba(255,255,255,0.07); border: 1.5px solid rgba(240,200,80,0.3);
+  border-radius: 12px; color: #f0f0f0; font-size: 1rem; padding: 10px 14px;
+  margin-bottom: 12px; outline: none; text-align: center;
+}
+.onm-input:focus { border-color: rgba(240,200,80,0.6); }
+.onm-btn {
+  width: 100%; padding: 12px; border-radius: 14px;
+  background: linear-gradient(135deg, #e8b830, #c89010);
+  color: #1a0f00; font-weight: 800; border: none; cursor: pointer;
+  font-size: 0.95rem;
+}
+.onm-btn:disabled { opacity: 0.4; cursor: default; }
 
-/* Improve touch on mobile */
-button, .toolbar-btn, .cell {
-touch-action: manipulation;
-}
-
-/* Better keyboard focus */
-.cell:focus-visible, button:focus-visible, select:focus-visible {
-outline: 3px solid rgba(240,200,80,0.95);
-outline-offset: 2px;
-}
-
-/* Last action highlights */
-.cell.last-move-from {
-box-shadow: inset 0 0 0 2px rgba(99,164,255,0.95), 0 0 18px rgba(99,164,255,0.35);
-}
-.cell.last-move-to {
-box-shadow: inset 0 0 0 2px rgba(0,255,255,0.95), 0 0 18px rgba(0,255,255,0.35);
-}
-.cell.last-capture {
-box-shadow: inset 0 0 0 2px rgba(255,77,77,0.98), 0 0 18px rgba(255,77,77,0.35);
-}
-
-/* Pion sur le point d'être capturé – mise en évidence avant suppression */
-.cell.capture-pending {
-box-shadow: inset 0 0 0 3px rgba(255,60,60,1), 0 0 28px rgba(255,60,60,0.75);
-z-index: 2;
-position: relative;
-}
-.cell.capture-pending .stone {
-animation: capturePendingPulse 0.45s ease-in-out infinite !important;
-filter: drop-shadow(0 0 12px rgba(255, 50, 50, 1)) !important;
-outline: 3px solid rgba(255,60,60,0.95);
-outline-offset: 2px;
-}
-@keyframes capturePendingPulse {
-0%, 100% {
-transform: scale(1);
-opacity: 1;
-}
-50% {
-transform: scale(1.18);
-opacity: 0.75;
-}
-}
-@media (prefers-reduced-motion: reduce) {
-.cell.capture-pending .stone {
-animation: none !important;
-}
-}
-
-/* ── MODE GLISSER-DÉPOSER ── */
-
-/* Empêche le scroll/zoom pendant le drag (mobile) + évite la sélection de texte */
-.drag-mode-active {
-touch-action: none;
--webkit-user-select: none;
-user-select: none;
-}
-.drag-mode-active .cell,
-.drag-mode-active .stone {
-touch-action: none;
-}
-
-
-/* Pion en cours de glissement : semi-transparent, légèrement réduit */
-.stone.dragging {
-opacity: 0.35;
-transform: scale(0.85);
-transition: opacity 0.12s ease, transform 0.12s ease;
-filter: brightness(0.7) !important;
-}
-
-/* Case cible valide survolée pendant le glissement */
-.cell.drag-over {
-background: rgba(240, 200, 80, 0.38) !important;
-outline: 3px solid var(--text-gold) !important;
-box-shadow: inset 0 0 18px rgba(240, 200, 80, 0.65), 0 0 22px rgba(240, 200, 80, 0.45) !important;
-z-index: 5;
-}
-
-/* Curseur grab sur les pions déplaçables en mode drag */
-.drag-mode-active .cell[data-draggable="true"] {
-cursor: grab;
-}
-.drag-mode-active .cell[data-draggable="true"]:active {
-cursor: grabbing;
-}
-
-/* Ghost : pion fantôme qui suit le curseur */
-#drag-ghost {
-position: fixed;
-pointer-events: none;
-z-index: 9999;
-left: 0;
-top: 0;
-width: 48px;
-height: 48px;
-border-radius: 50%;
-opacity: 0.85;
-/* Positionnement via transform = composite GPU, zéro reflow */
-transform: translate(-9999px, -9999px) scale(1.15);
-will-change: transform;
-box-shadow: 0 8px 24px rgba(0,0,0,0.55), inset 0 -5px 12px rgba(0,0,0,0.4), inset 0 5px 10px rgba(255,255,255,0.3);
-display: none;
-transition: none;
-}
-#drag-ghost.visible {
-display: block;
-}
-#drag-ghost.player1 {
-background: radial-gradient(circle at 35% 35%, var(--player1-stone-color-light), var(--player1-stone-color-dark) 60%, #000 90%);
-}
-#drag-ghost.player2 {
-background: radial-gradient(circle at 35% 35%, var(--player2-stone-color-light), var(--player2-stone-color-dark) 60%, #e0e0e0 90%);
-}
-
-/* Bouton drag actif dans la tray */
-#drag-btn.active {
-background: linear-gradient(145deg, rgba(240,200,80,0.28), rgba(240,200,80,0.14)) !important;
-border-color: rgba(240,200,80,0.75) !important;
-color: var(--text-gold) !important;
-}
-
-/* ─────────────────────────────────────────────────────────────────
-   MORPION CARRÉ (ntlata) — CSS complet refactorisé
-   Deux modes : SVG-lignes (défaut) + cases (bouton toolbar)
-   Variables --nt-* définies par thème global (data-theme)
-   Spécificité renforcée : body .game-board.ntlata-board
-   ───────────────────────────────────────────────────────────────── */
-
-/* ── Bouton "plateau cases" actif ───────────────────────────── */
-#ntlata-style-btn.active {
-  background: linear-gradient(145deg, rgba(200,132,26,0.28), rgba(200,132,26,0.14)) !important;
-  border-color: rgba(200,132,26,0.75) !important;
-  color: var(--text-gold, #d4920a) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   VARIABLES --nt-* PAR THÈME GLOBAL
-   Héritées par container, plateau, cellules et pions ntlata
-   ══════════════════════════════════════════════════════════════════ */
-
-/* Fallback / thème TIDDAST (aucun data-theme ou thème inconnu) */
-:root {
-  --nt-svg-stroke:       %23c8841a;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, #f6ecd4, #d4920a 55%, #4c2e12 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(200,132,26,0.35), 0 2px 8px rgba(0,0,0,0.45);
-  --nt-board-bg:         #1c1208;
-  --nt-board-border:     3px solid rgba(0,0,0,0.65);
-  --nt-container-bg:     linear-gradient(160deg, #55320e 0%, #321806 50%, #452010 100%);
-  --nt-container-border: #6a3c14;
-  --nt-container-shadow: 0 24px 64px rgba(0,0,0,0.75), 0 4px 16px rgba(0,0,0,0.5);
-  --nt-cell-bg:          rgba(200,132,26,0.07);
-  --nt-cell-bg-hover:    rgba(200,132,26,0.16);
-  --nt-select-bg:        rgba(200,132,26,0.24);
-  --nt-select-ring:      rgba(200,132,26,0.95);
-  --nt-select-glow:      rgba(200,132,26,0.45);
-  --nt-move-bg:          rgba(200,132,26,0.14);
-  --nt-move-border:      rgba(200,132,26,0.82);
-  --nt-move-dot:         rgba(200,132,26,0.68);
-  --nt-mill-bg:          rgba(70,170,210,0.16);
-  --nt-mill-border:      rgba(70,170,210,0.80);
-  --nt-mill-glow:        rgba(70,170,210,0.40);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #4a4238, #1c1812 58%, #090705 92%);
-  --nt-p1-shadow:        0 5px 14px rgba(0,0,0,0.72), inset 0 -4px 10px rgba(0,0,0,0.52), inset 0 4px 8px rgba(180,160,120,0.18);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #ffffff, #ddd5c5 60%, #a89878 92%);
-  --nt-p2-shadow:        0 5px 14px rgba(0,0,0,0.52), inset 0 -4px 10px rgba(0,0,0,0.18), inset 0 4px 8px rgba(255,255,255,0.75);
-  --nt-p2-border:        none;
-}
-
-/* ── Kabylie (clair) ── */
-[data-theme="kabylie"] {
-  --nt-svg-stroke:       %231a56db;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, #fff8ee, #1a56db 55%, #0e2872 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(26,86,219,0.35), 0 2px 8px rgba(0,0,0,0.28);
-  --nt-board-bg:         rgba(255,250,240,0.95);
-  --nt-board-border:     4px solid rgba(47,42,37,0.55);
-  --nt-container-bg:     linear-gradient(160deg, rgba(183,118,52,0.65), rgba(215,162,90,0.55));
-  --nt-container-border: rgba(138,90,43,0.55);
-  --nt-container-shadow: 0 14px 34px rgba(0,0,0,0.16), inset 0 0 18px rgba(255,255,255,0.35);
-  --nt-cell-bg:          rgba(255,248,228,0.96);
-  --nt-cell-bg-hover:    rgba(255,238,200,0.98);
-  --nt-select-bg:        rgba(156,107,0,0.22);
-  --nt-select-ring:      rgba(156,107,0,0.92);
-  --nt-select-glow:      rgba(156,107,0,0.35);
-  --nt-move-bg:          rgba(46,125,50,0.14);
-  --nt-move-border:      rgba(46,125,50,0.85);
-  --nt-move-dot:         rgba(46,125,50,0.65);
-  --nt-mill-bg:          rgba(30,136,229,0.12);
-  --nt-mill-border:      rgba(30,136,229,0.80);
-  --nt-mill-glow:        rgba(30,136,229,0.35);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #444, #1f1a12 60%, #0d0b09 92%);
-  --nt-p1-shadow:        0 6px 12px rgba(0,0,0,0.30), inset 0 -5px 12px rgba(0,0,0,0.28), inset 0 5px 10px rgba(255,255,255,0.15);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #fff, #e9e4db 60%, #bdb7ad 92%);
-  --nt-p2-shadow:        0 6px 12px rgba(0,0,0,0.18), inset 0 -5px 12px rgba(0,0,0,0.12), inset 0 5px 10px rgba(255,255,255,0.65);
-  --nt-p2-border:        none;
-}
-
-/* ── Désert ── */
-[data-theme="desert"] {
-  --nt-svg-stroke:       %23b87a10;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, #fff3cc, #c87030 55%, #5a2800 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(184,122,16,0.35), 0 2px 8px rgba(0,0,0,0.35);
-  --nt-board-bg:         rgba(246,226,184,0.95);
-  --nt-board-border:     4px solid rgba(120,70,20,0.50);
-  --nt-container-bg:     linear-gradient(160deg, rgba(200,140,60,0.65), rgba(180,110,40,0.55));
-  --nt-container-border: rgba(160,86,30,0.55);
-  --nt-container-shadow: 0 14px 34px rgba(0,0,0,0.22), inset 0 0 18px rgba(255,255,255,0.15);
-  --nt-cell-bg:          rgba(255,245,215,0.97);
-  --nt-cell-bg-hover:    rgba(252,235,190,0.98);
-  --nt-select-bg:        rgba(184,122,16,0.22);
-  --nt-select-ring:      rgba(184,122,16,0.92);
-  --nt-select-glow:      rgba(184,122,16,0.38);
-  --nt-move-bg:          rgba(0,150,100,0.16);
-  --nt-move-border:      rgba(0,150,100,0.82);
-  --nt-move-dot:         rgba(0,150,100,0.65);
-  --nt-mill-bg:          rgba(200,112,30,0.14);
-  --nt-mill-border:      rgba(200,112,30,0.78);
-  --nt-mill-glow:        rgba(200,112,30,0.38);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #3d2214, #1a0d06 60%, #0a0502 92%);
-  --nt-p1-shadow:        0 6px 12px rgba(0,0,0,0.40), inset 0 -5px 12px rgba(0,0,0,0.35), inset 0 5px 10px rgba(255,255,255,0.10);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #fff8e8, #f3ddb0 60%, #c8a060 92%);
-  --nt-p2-shadow:        0 6px 12px rgba(0,0,0,0.22), inset 0 -5px 12px rgba(0,0,0,0.14), inset 0 5px 10px rgba(255,255,255,0.60);
-  --nt-p2-border:        none;
-}
-
-/* ── Nuit ── */
-[data-theme="nuit"] {
-  --nt-svg-stroke:       %23c4b5fd;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, rgba(255,255,255,0.94), rgba(196,181,253,0.86) 55%, rgba(49,32,118,0.95) 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(196,181,253,0.38), 0 2px 8px rgba(0,0,0,0.58), 0 0 14px rgba(124,58,237,0.32);
-  --nt-board-bg:         #14104a;
-  --nt-board-border:     4px solid #1e1872;
-  --nt-container-bg:     linear-gradient(160deg, #1e1858, #13103a);
-  --nt-container-border: #3a30a0;
-  --nt-container-shadow: 0 14px 34px rgba(0,0,0,0.68), inset 0 0 18px rgba(196,181,253,0.08);
-  --nt-cell-bg:          rgba(22,12,55,0.92);
-  --nt-cell-bg-hover:    rgba(35,18,80,0.96);
-  --nt-select-bg:        rgba(196,181,253,0.26);
-  --nt-select-ring:      #c4b5fd;
-  --nt-select-glow:      rgba(196,181,253,0.58);
-  --nt-move-bg:          rgba(52,212,237,0.16);
-  --nt-move-border:      #34d4ed;
-  --nt-move-dot:         rgba(52,212,237,0.78);
-  --nt-mill-bg:          rgba(196,181,253,0.20);
-  --nt-mill-border:      #c4b5fd;
-  --nt-mill-glow:        rgba(196,181,253,0.52);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #c4b5fd, #6d28d9 58%, #1e0f50 90%);
-  --nt-p1-shadow:        0 6px 18px rgba(0,0,0,0.65), inset 0 -4px 12px rgba(0,0,0,0.48), inset 0 4px 10px rgba(196,181,253,0.40), 0 0 16px rgba(109,40,217,0.42);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #7ff4fd, #0891b2 58%, #0a2e42 90%);
-  --nt-p2-shadow:        0 6px 18px rgba(0,0,0,0.65), inset 0 -4px 12px rgba(0,0,0,0.48), inset 0 4px 10px rgba(127,244,253,0.40), 0 0 16px rgba(8,145,178,0.42);
-  --nt-p2-border:        none;
-}
-
-/* ── Glass ── */
-[data-theme="glass"] {
-  --nt-svg-stroke:       %23e9d5ff;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, rgba(255,255,255,0.95), rgba(233,213,255,0.88) 55%, rgba(28,10,58,0.95) 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(233,213,255,0.35), 0 2px 8px rgba(0,0,0,0.52), 0 0 16px rgba(124,58,237,0.45);
-  --nt-board-bg:         rgba(255,255,255,0.04);
-  --nt-board-border:     2px solid rgba(232,180,248,0.18);
-  --nt-container-bg:     linear-gradient(135deg, rgba(168,85,247,0.14), rgba(59,130,246,0.10));
-  --nt-container-border: rgba(232,180,248,0.22);
-  --nt-container-shadow: 0 16px 48px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.07);
-  --nt-cell-bg:          rgba(255,255,255,0.06);
-  --nt-cell-bg-hover:    rgba(255,255,255,0.13);
-  --nt-select-bg:        rgba(232,180,248,0.22);
-  --nt-select-ring:      #e8b4f8;
-  --nt-select-glow:      rgba(168,85,247,0.55);
-  --nt-move-bg:          rgba(125,211,247,0.16);
-  --nt-move-border:      #7dd3f7;
-  --nt-move-dot:         rgba(125,211,247,0.75);
-  --nt-mill-bg:          rgba(232,180,248,0.18);
-  --nt-mill-border:      #e8b4f8;
-  --nt-mill-glow:        rgba(168,85,247,0.52);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #c4b5fd, #7c3aed 55%, #2e1065 90%);
-  --nt-p1-shadow:        0 5px 14px rgba(0,0,0,0.60), inset 0 -4px 12px rgba(0,0,0,0.40), inset 0 4px 10px rgba(196,181,253,0.42), 0 0 16px rgba(168,85,247,0.50);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #bae6fd, #0ea5e9 55%, #0c4a6e 90%);
-  --nt-p2-shadow:        0 5px 14px rgba(0,0,0,0.60), inset 0 -4px 12px rgba(0,0,0,0.40), inset 0 4px 10px rgba(186,230,253,0.42), 0 0 16px rgba(59,130,246,0.50);
-  --nt-p2-border:        none;
-}
-
-/* ── Contraste ── */
-[data-theme="contrast"] {
-  --nt-svg-stroke:       %23ffffff;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, #fff, #aaa 55%, #333 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(255,255,255,0.55), 0 2px 8px rgba(0,0,0,0.80);
-  --nt-board-bg:         #000;
-  --nt-board-border:     4px solid #fff;
-  --nt-container-bg:     #000;
-  --nt-container-border: #fff;
-  --nt-container-shadow: none;
-  --nt-cell-bg:          #111;
-  --nt-cell-bg-hover:    #1e1e1e;
-  --nt-select-bg:        rgba(255,212,0,0.28);
-  --nt-select-ring:      #ffd400;
-  --nt-select-glow:      rgba(255,212,0,0.60);
-  --nt-move-bg:          rgba(0,229,255,0.22);
-  --nt-move-border:      #00e5ff;
-  --nt-move-dot:         #00e5ff;
-  --nt-mill-bg:          rgba(255,212,0,0.18);
-  --nt-mill-border:      #ffd400;
-  --nt-mill-glow:        rgba(255,212,0,0.55);
-  --nt-p1-bg:            #111;
-  --nt-p1-shadow:        inset 0 0 0 2px #fff, 0 5px 12px rgba(0,0,0,0.80);
-  --nt-p1-border:        2px solid #fff;
-  --nt-p2-bg:            #eee;
-  --nt-p2-shadow:        inset 0 0 0 2px #000, 0 5px 12px rgba(0,0,0,0.60);
-  --nt-p2-border:        2px solid #000;
-}
-
-/* ── Modern Light ── */
-[data-theme="modern"] {
-  --nt-svg-stroke:       %232563eb;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, #fff, #60a5fa 55%, #1e40af 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(37,99,235,0.30), 0 2px 8px rgba(0,0,0,0.25);
-  --nt-board-bg:         #f8fafc;
-  --nt-board-border:     2px solid rgba(37,99,235,0.20);
-  --nt-container-bg:     linear-gradient(160deg, rgba(96,165,250,0.18), rgba(37,99,235,0.10));
-  --nt-container-border: rgba(37,99,235,0.22);
-  --nt-container-shadow: 0 12px 36px rgba(0,0,0,0.20), inset 0 0 12px rgba(37,99,235,0.06);
-  --nt-cell-bg:          rgba(255,255,255,0.90);
-  --nt-cell-bg-hover:    rgba(238,242,255,0.96);
-  --nt-select-bg:        rgba(37,99,235,0.16);
-  --nt-select-ring:      rgba(37,99,235,0.88);
-  --nt-select-glow:      rgba(37,99,235,0.35);
-  --nt-move-bg:          rgba(6,182,212,0.14);
-  --nt-move-border:      rgba(6,182,212,0.82);
-  --nt-move-dot:         rgba(6,182,212,0.65);
-  --nt-mill-bg:          rgba(37,99,235,0.12);
-  --nt-mill-border:      rgba(37,99,235,0.75);
-  --nt-mill-glow:        rgba(37,99,235,0.35);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #334155, #0f172a 70%);
-  --nt-p1-shadow:        0 5px 12px rgba(0,0,0,0.25), inset 0 -4px 10px rgba(0,0,0,0.20), inset 0 4px 8px rgba(255,255,255,0.12);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #f8fafc, #e2e8f0 65%, #cbd5e1 90%);
-  --nt-p2-shadow:        0 5px 12px rgba(0,0,0,0.15), inset 0 -4px 10px rgba(0,0,0,0.10), inset 0 4px 8px rgba(255,255,255,0.70);
-  --nt-p2-border:        none;
-}
-
-/* ── Modern Dark ── */
-[data-theme="modern-dark"] {
-  --nt-svg-stroke:       %2338bdf8;
-  --nt-dot-bg:           radial-gradient(circle at 33% 31%, rgba(255,255,255,0.95), rgba(56,189,248,0.85) 55%, rgba(7,89,133,0.95) 100%);
-  --nt-dot-shadow:       0 0 0 3px rgba(56,189,248,0.35), 0 2px 8px rgba(0,0,0,0.55), 0 0 12px rgba(14,165,233,0.30);
-  --nt-board-bg:         #0f172a;
-  --nt-board-border:     2px solid rgba(56,189,248,0.25);
-  --nt-container-bg:     linear-gradient(160deg, rgba(14,165,233,0.18), rgba(7,89,133,0.14));
-  --nt-container-border: rgba(56,189,248,0.30);
-  --nt-container-shadow: 0 14px 40px rgba(0,0,0,0.70), inset 0 0 18px rgba(56,189,248,0.06);
-  --nt-cell-bg:          rgba(15,23,42,0.85);
-  --nt-cell-bg-hover:    rgba(30,41,59,0.92);
-  --nt-select-bg:        rgba(56,189,248,0.22);
-  --nt-select-ring:      rgba(56,189,248,0.92);
-  --nt-select-glow:      rgba(56,189,248,0.50);
-  --nt-move-bg:          rgba(6,182,212,0.16);
-  --nt-move-border:      rgba(6,182,212,0.82);
-  --nt-move-dot:         rgba(6,182,212,0.68);
-  --nt-mill-bg:          rgba(56,189,248,0.16);
-  --nt-mill-border:      rgba(56,189,248,0.75);
-  --nt-mill-glow:        rgba(56,189,248,0.48);
-  --nt-p1-bg:            radial-gradient(circle at 33% 31%, #0ea5e9, #075985 60%, #0c2a40 90%);
-  --nt-p1-shadow:        0 5px 12px rgba(0,0,0,0.60), inset 0 -4px 10px rgba(0,0,0,0.40), inset 0 4px 8px rgba(56,189,248,0.30), 0 0 10px rgba(14,165,233,0.32);
-  --nt-p1-border:        none;
-  --nt-p2-bg:            radial-gradient(circle at 33% 31%, #f1f5f9, #94a3b8 65%, #475569 90%);
-  --nt-p2-shadow:        0 5px 12px rgba(0,0,0,0.50), inset 0 -4px 10px rgba(0,0,0,0.25), inset 0 4px 8px rgba(255,255,255,0.25);
-  --nt-p2-border:        none;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   CONTAINER — lit les --nt-* via héritage
-   Spécificité haute pour battre le thème TIDDAST
-   ══════════════════════════════════════════════════════════════════ */
-body .game-board-container:has(> .game-board.ntlata-board),
-body .game-board-container.ntlata-container-active {
-  /* Taille adaptée au 3×3 : plus compact que le 5×5 */
-  width: min(88vw, calc(88dvh - 9rem), 420px) !important;
-  max-width: 420px !important;
-  aspect-ratio: 1 / 1 !important;
-  /* Le container hérite de son style normal (thème actif) — pas de couleur imposée */
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   PLATEAU BASE — commun aux deux modes
-   ══════════════════════════════════════════════════════════════════ */
-body .game-board.ntlata-board {
-  grid-template-columns: repeat(3, 1fr) !important;
-  grid-template-rows:    repeat(3, 1fr) !important;
-  background:    var(--nt-board-bg)     !important;
-  border:        var(--nt-board-border) !important;
-  border-radius: 6px                    !important;
-  box-shadow:    inset 0 0 18px rgba(0,0,0,0.28) !important;
-  /* position: relative garanti pour ::before SVG */
-  position: relative !important;
-  overflow: visible !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   PIONS — communs aux deux modes
-   ══════════════════════════════════════════════════════════════════ */
-body .game-board.ntlata-board .cell .stone.player1 {
-  background:  var(--nt-p1-bg)     !important;
-  box-shadow:  var(--nt-p1-shadow) !important;
-  border:      var(--nt-p1-border) !important;
-}
-body .game-board.ntlata-board .cell .stone.player2 {
-  background:  var(--nt-p2-bg)     !important;
-  box-shadow:  var(--nt-p2-shadow) !important;
-  border:      var(--nt-p2-border) !important;
-}
-/* Reflet 3D sur les pions */
-body .game-board.ntlata-board .cell .stone::after {
-  content:       '' !important;
-  position:      absolute !important;
-  inset:         10% 18% auto 18% !important;
-  height:        20% !important;
-  border-radius: 999px !important;
-  background:    linear-gradient(180deg, rgba(255,255,255,0.46), transparent) !important;
-  opacity:       0.65 !important;
-  pointer-events: none !important;
-  transform:     none !important;
-  filter:        none !important;
-  z-index:       3 !important;
-  width:         auto !important;
-  top:           auto !important;
-  left:          auto !important;
-}
-/* Pion bloqué */
-body .game-board.ntlata-board .cell .stone.consecutive-blocked {
-  opacity: 0.42 !important;
-  filter:  grayscale(0.5) !important;
-}
-/* Pion capturable */
-body .game-board.ntlata-board .cell.capturable .stone {
-  outline:        3px solid rgba(220,60,40,0.88) !important;
-  outline-offset: 2px !important;
-  animation:      pulse-capturable 0.8s ease-in-out infinite alternate !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   MODE SVG-LIGNES (défaut, :not(.ntlata-cases-mode))
-   Le plateau est transparent — les lignes viennent du SVG ::before
-   Les pions flottent aux intersections
-   ══════════════════════════════════════════════════════════════════ */
-
-/* Plateau transparent pour laisser voir le SVG ::before */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) {
-  background: transparent !important;
-  border:     none !important;
-  box-shadow: none !important;
-  overflow:   visible !important;
-}
-
-/* Cellules transparentes — grille de hit-areas */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell {
-  background: transparent !important;
-  border:     none !important;
-  box-shadow: none !important;
-  position:   relative !important;
-  z-index:    1;
-  overflow:   visible !important;
-}
-
-/* Curseurs */
-body .game-board.ntlata-board .cell.ntlata-inactive { pointer-events: none; cursor: default; }
-body .game-board.ntlata-board .cell.ntlata-playable { cursor: pointer; }
-
-/* ── Point d'intersection (::after sur chaque case jouable) ── */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable::after {
-  content:       '' !important;
-  position:      absolute !important;
-  top:           50% !important;
-  left:          50% !important;
-  transform:     translate(-50%, -50%) !important;
-  width:         28% !important;
-  height:        28% !important;
-  border-radius: 50% !important;
-  background:    var(--nt-dot-bg) !important;
-  box-shadow:    var(--nt-dot-shadow) !important;
-  opacity:       0.92 !important;
-  transition:    transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease !important;
-  z-index:       2 !important;
-  pointer-events: none !important;
-}
-/* Agrandir le point au hover */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable:hover::after {
-  transform: translate(-50%, -50%) scale(1.25) !important;
-  opacity:   1 !important;
-}
-/* Cacher le point quand un pion est présent */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable:has(.stone)::after,
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.filled::after {
-  opacity: 0 !important;
-}
-/* Fallback :has() pour navigateurs anciens */
-@supports not selector(:has(*)) {
-  body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.filled::after { opacity: 0 !important; }
-}
-
-/* ── Pions sur les intersections (position absolute, centrés) ── */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell .stone {
-  width:     50% !important;
-  height:    50% !important;
-  position:  absolute !important;
-  top:       50% !important;
-  left:      50% !important;
-  transform: translate(-50%, -50%) !important;
-  z-index:   4 !important;
-  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
-}
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable:hover .stone,
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.selected .stone {
-  transform: translate(-50%, -50%) scale(1.14) !important;
-}
-
-/* ── États interactifs en mode SVG — halos visibles ── */
-/* Tous les états : fond transparent (le halo passe par ::before de la cellule) */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.selected,
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.possible-move,
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.mill-highlight {
-  background: transparent !important;
-}
-
-/* Halo de sélection : cercle coloré derrière le pion */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.selected::before {
-  content:       '' !important;
-  position:      absolute !important;
-  top:           50% !important;
-  left:          50% !important;
-  transform:     translate(-50%, -50%) !important;
-  width:         72% !important;
-  height:        72% !important;
-  border-radius: 50% !important;
-  background:    var(--nt-select-bg) !important;
-  box-shadow:    0 0 0 3px var(--nt-select-ring), 0 0 22px var(--nt-select-glow) !important;
-  z-index:       3 !important;
-  pointer-events: none !important;
-  animation:     ntlata-select-pulse 1s ease-in-out infinite alternate !important;
-}
-
-/* Halo coup possible : point central + anneau pointillé */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.possible-move::before {
-  content:       '' !important;
-  position:      absolute !important;
-  top:           50% !important;
-  left:          50% !important;
-  transform:     translate(-50%, -50%) !important;
-  width:         38% !important;
-  height:        38% !important;
-  border-radius: 50% !important;
-  background:    var(--nt-move-dot) !important;
-  box-shadow:    0 0 0 3px var(--nt-move-border), 0 0 14px var(--nt-move-bg) !important;
-  z-index:       3 !important;
-  pointer-events: none !important;
-  animation:     ntlata-move-pulse 0.8s ease-in-out infinite alternate !important;
-}
-/* Masquer le point si un pion occupe la case */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.possible-move:has(.stone)::before {
-  display: none !important;
-}
-
-/* Halo moulin : lueur de couleur */
-body .game-board.ntlata-board:not(.ntlata-cases-mode) .cell.ntlata-playable.mill-highlight::before {
-  content:       '' !important;
-  position:      absolute !important;
-  top:           50% !important;
-  left:          50% !important;
-  transform:     translate(-50%, -50%) !important;
-  width:         72% !important;
-  height:        72% !important;
-  border-radius: 50% !important;
-  background:    transparent !important;
-  box-shadow:    0 0 0 3px var(--nt-mill-border), 0 0 20px var(--nt-mill-glow) !important;
-  z-index:       3 !important;
-  pointer-events: none !important;
-}
-
-/* ── Animations ntlata ── */
-@keyframes ntlata-select-pulse {
-  from { box-shadow: 0 0 0 3px var(--nt-select-ring), 0 0 14px var(--nt-select-glow); }
-  to   { box-shadow: 0 0 0 4px var(--nt-select-ring), 0 0 28px var(--nt-select-glow); }
-}
-@keyframes ntlata-move-pulse {
-  from { transform: translate(-50%, -50%) scale(0.88); opacity: 0.75; }
-  to   { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
-}
-
-
-/* ══════════════════════════════════════════════════════════════════
-   MODE CASES (ntlata-cases-mode)
-   Grille de 9 cases colorées, style damier moderne
-   ══════════════════════════════════════════════════════════════════ */
-body .game-board.ntlata-board.ntlata-cases-mode {
-  background:    var(--nt-board-bg) !important;
-  border:        var(--nt-board-border) !important;
-  border-radius: 10px !important;
-  box-shadow:    inset 0 0 22px rgba(0,0,0,0.30) !important;
-  overflow:      hidden !important;
-  gap:           4px !important;
-  padding:       6px !important;
-}
-/* Cacher le SVG ::before en mode cases */
-body .game-board.ntlata-board.ntlata-cases-mode::before {
-  display: none !important;
-}
-/* Cellules */
-body .game-board.ntlata-board.ntlata-cases-mode .cell {
-  background:      var(--nt-cell-bg)       !important;
-  border:          1.5px solid var(--nt-container-border) !important;
-  border-radius:   6px                     !important;
-  box-shadow:      inset 0 1px 4px rgba(0,0,0,0.14) !important;
-  display:         flex                    !important;
-  align-items:     center                  !important;
-  justify-content: center                  !important;
-  position:        relative                !important;
-  overflow:        hidden                  !important;
-  transition:      background 0.14s ease, border-color 0.14s ease, transform 0.12s ease !important;
-}
-body .game-board.ntlata-board.ntlata-cases-mode .cell:hover {
-  background: var(--nt-cell-bg-hover) !important;
-  border-color: var(--nt-select-ring) !important;
-  transform: scale(1.04) !important;
-}
-/* Masquer le point d'intersection en mode cases */
-body .game-board.ntlata-board.ntlata-cases-mode .cell.ntlata-playable::after {
-  display: none !important;
-}
-/* Pions en mode cases — centrés par flexbox */
-body .game-board.ntlata-board.ntlata-cases-mode .cell .stone {
-  width:       72% !important;
-  height:      72% !important;
-  position:    relative !important;
-  top:         auto !important;
-  left:        auto !important;
-  transform:   none !important;
-  flex-shrink: 0 !important;
-  transition:  transform 0.15s ease, box-shadow 0.15s ease !important;
-}
-body .game-board.ntlata-board.ntlata-cases-mode .cell.ntlata-playable:hover .stone,
-body .game-board.ntlata-board.ntlata-cases-mode .cell.ntlata-playable.selected .stone {
-  transform: scale(1.10) !important;
-}
-/* Case sélectionnée */
-body .game-board.ntlata-board.ntlata-cases-mode .cell.selected,
-body .game-board.ntlata-board.ntlata-cases-mode .cell.ntlata-playable.selected {
-  background:   var(--nt-select-bg)   !important;
-  border-color: var(--nt-select-ring) !important;
-  box-shadow:   inset 0 0 0 2.5px var(--nt-select-ring), 0 0 16px var(--nt-select-glow) !important;
-  transform:    scale(1.04) !important;
-}
-/* Coup possible */
-body .game-board.ntlata-board.ntlata-cases-mode .cell.possible-move {
-  background:   var(--nt-move-bg)     !important;
-  border-color: var(--nt-move-border) !important;
-  box-shadow:   inset 0 0 0 1.5px var(--nt-move-border) !important;
-}
-body .game-board.ntlata-board.ntlata-cases-mode .cell.possible-move::before {
-  content:        '' !important;
-  display:        block !important;
-  width:          30% !important;
-  height:         30% !important;
-  border-radius:  50% !important;
-  background:     var(--nt-move-dot) !important;
-  position:       absolute !important;
-  top:    50% !important;
-  left:   50% !important;
-  transform: translate(-50%,-50%) !important;
-  pointer-events: none !important;
-  z-index: 1 !important;
-  animation: ntlata-move-dot-pulse 0.8s ease-in-out infinite alternate !important;
-}
-body .game-board.ntlata-board.ntlata-cases-mode .cell.possible-move:has(.stone)::before {
-  display: none !important;
-}
-/* Moulin */
-body .game-board.ntlata-board.ntlata-cases-mode .cell.mill-highlight {
-  background:   var(--nt-mill-bg)     !important;
-  border-color: var(--nt-mill-border) !important;
-  box-shadow:   inset 0 0 16px var(--nt-mill-glow), inset 0 0 0 1.5px var(--nt-mill-border) !important;
-}
-
-@keyframes ntlata-move-dot-pulse {
-  from { transform: translate(-50%, -50%) scale(0.85); opacity: 0.70; }
-  to   { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
-}
-
-
-/* ===== BOARD THEME – INLINE SWATCH GRID ===== */
-.btp-inline-grid {
-display: grid;
-grid-template-columns: repeat(5, 1fr);
-gap: 5px;
-padding: 6px 2px 4px;
-}
-.btp-dot {
-appearance: none;
-background: none;
-border: 2px solid transparent;
-border-radius: 5px;
-padding: 2px;
-cursor: pointer;
-transition: border-color 0.18s, transform 0.15s;
-display: flex;
-align-items: center;
-justify-content: center;
-}
-.btp-dot:hover { transform: scale(1.12); border-color: rgba(240,200,80,0.45); }
-.btp-dot.active { border-color: rgba(240,200,80,0.9); box-shadow: 0 0 6px rgba(240,200,80,0.35); }
-.btp-dot-swatch {
-display: block;
-width: 22px;
-height: 22px;
-border-radius: 3px;
-border: 1.5px solid rgba(255,255,255,0.12);
-}
-/* Swatches — board bg sample + border accent */
-.btp-sw-default  { background: linear-gradient(135deg,#2b231d,#201b17); border-color: rgba(240,200,80,0.4); }
-.btp-sw-teal     { background: linear-gradient(135deg,#2c5f6f,#1f4a5a); border-color: #d4af8f; }
-.btp-sw-wood     { background: linear-gradient(135deg,#6b4423,#4a2f18); border-color: #8b5a2b; }
-.btp-sw-parchment{ background: linear-gradient(135deg,#f0e9d2,#e2d4b8); border-color: #b89a6a; }
-.btp-sw-obsidian { background: linear-gradient(135deg,#111,#222); border-color: #d4af8f; }
-.btp-sw-berber   { background: linear-gradient(135deg,#5a2d0c,#8c4a1a); border-color: #f0c850; }
-.btp-sw-night    { background: linear-gradient(135deg,#0d1b2a,#1a2e42); border-color: #4aa8d8; }
-.btp-sw-sand     { background: linear-gradient(135deg,#c9a96e,#a07840); border-color: #e8c882; }
-.btp-sw-jade     { background: linear-gradient(135deg,#1a3d2b,#0f2a1e); border-color: #4db87a; }
-.btp-sw-crimson  { background: linear-gradient(135deg,#3d0a0a,#5c1010); border-color: #d44; }
-
-/* ===== BOARD THEME STYLES (data-board-theme on #board) ===== */
 /* shared transition — jamais de width/height/display dans les thèmes */
 .game-board[data-board-theme] {
   transition: background 0.4s ease, border 0.4s ease, box-shadow 0.4s ease, border-radius 0.4s ease;
@@ -13960,263 +12626,93 @@ Patrimoine Amazigh • Idles Amaziɣ
 </div>
 <div class="selection-area online-lobby" id="online-lobby-area">
 
-  <!-- En-tête -->
-  <div class="ol-header">
-    <div class="ol-header-icon" aria-hidden="true">
-      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="20" cy="20" r="19" stroke="currentColor" stroke-width="1.5" opacity=".35"/>
-        <circle cx="20" cy="20" r="13" stroke="currentColor" stroke-width="1.5" opacity=".55"/>
-        <circle cx="20" cy="20" r="3.5" fill="currentColor"/>
-        <line x1="20" y1="1" x2="20" y2="8"  stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="20" y1="32" x2="20" y2="39" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="1"  y1="20" x2="8"  y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="32" y1="20" x2="39" y2="20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-      </svg>
-    </div>
-    <h2 class="ol-title" data-i18n="onlineTitle">Multijoueur en ligne</h2>
-    <p class="ol-subtitle" data-i18n="onlineSubtitle">Jouez avec n'importe qui, partout dans le monde</p>
-    <p id="online-status-global" class="ol-global-msg" aria-live="polite"></p>
+  <h2 class="ol-title" data-i18n="onlineTitle">⚔️ Multijoueur en ligne</h2>
+  <p id="online-status-global" class="ol-global-msg" aria-live="polite"></p>
+
+  <!-- Pseudo -->
+  <input class="ol-input" id="online-your-name" maxlength="24"
+         autocomplete="nickname" inputmode="text"
+         data-i18n-placeholder="onlineNamePlaceholder" placeholder="Ton pseudo…" />
+
+  <!-- Actions principales -->
+  <button class="ol-big-btn ol-btn-create" id="online-create-room" type="button">
+    + <span data-i18n="onlineCreate">Créer une partie</span>
+  </button>
+
+  <div class="ol-divider-or" aria-hidden="true"><span data-i18n="onlineOr">ou</span></div>
+
+  <div class="ol-join-row">
+    <input class="ol-code-input" id="online-room-code"
+           inputmode="latin" autocomplete="off" spellcheck="false"
+           maxlength="6" data-i18n-placeholder="onlineJoinCodePlaceholder" placeholder="Code ami"
+           style="text-transform:uppercase" aria-label="Code du salon" />
+    <button class="ol-connect-btn" id="online-connect" type="button" disabled>→</button>
   </div>
 
-  <div class="ol-body">
+  <!-- Panel connecté -->
+  <div id="online-status" style="display:none;">
 
-    <!-- ─── Colonne gauche : configuration ─────────────────── -->
-    <div class="ol-col-setup">
+    <div class="ol-status-line">
+      <span class="ol-dot" id="ol-status-dot"></span>
+      <span id="online-status-text">—</span>
+    </div>
 
-      <!-- Bloc Pseudo -->
-      <section class="ol-section" aria-label="Votre pseudo">
-        <label class="ol-section-label" for="online-your-name">
-          <span class="ol-section-num">01</span><span data-i18n="onlineProfileLabel">Votre pseudo</span>
-        </label>
-        <div class="ol-input-wrap">
-          <span class="ol-input-icon" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="10" cy="7" r="3.5"/><path d="M2.5 17c0-3.314 3.358-6 7.5-6s7.5 2.686 7.5 6"/>
-            </svg>
-          </span>
-          <input class="ol-input" id="online-your-name" maxlength="24"
-                 autocomplete="nickname" inputmode="text"
-                 data-i18n-placeholder="onlineNamePlaceholder" placeholder="Ex: Yani" />
-        </div>
-        <p class="ol-hint" data-i18n="onlineNameHint">Mémorisé localement sur cet appareil</p>
-      </section>
+    <div class="ol-matchup" id="online-matchup" style="display:none;">
+      <span id="online-p1-name" data-i18n="onlineChipPending">—</span>
+      <span class="ol-vs">VS</span>
+      <span id="online-p2-name" data-i18n="onlineChipPending">—</span>
+    </div>
 
-      <!-- Bloc Salon -->
-      <section class="ol-section" aria-label="Rejoindre ou créer un salon">
-        <div class="ol-section-label">
-          <span class="ol-section-num">02</span><span data-i18n="onlineSalonLabel">Salon de jeu</span>
-        </div>
-
-        <div class="ol-actions">
-          <button class="ol-action-btn ol-action-create" id="online-create-room" type="button">
-            <span class="ol-action-icon" aria-hidden="true">
-              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="16" height="16" rx="4"/>
-                <line x1="11" y1="7.5" x2="11" y2="14.5"/>
-                <line x1="7.5" y1="11" x2="14.5" y2="11"/>
-              </svg>
-            </span>
-            <span class="ol-action-main" data-i18n="onlineCreate">Créer un salon</span>
-            <span class="ol-action-sub" data-i18n="onlineCreateDesc">Générer un code unique</span>
-          </button>
-
-          <button class="ol-action-btn ol-action-join" id="online-join-room" type="button">
-            <span class="ol-action-icon" aria-hidden="true">
-              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14 3h5v5"/><path d="M19 3l-8 8"/><path d="M9 5H5a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4"/>
-              </svg>
-            </span>
-            <span class="ol-action-main" data-i18n="onlineJoin">Rejoindre</span>
-            <span class="ol-action-sub" data-i18n="onlineJoinDesc">Entrer un code ami</span>
-          </button>
-
-          <button class="ol-action-btn ol-action-recent" id="online-recent-toggle" type="button" style="display:none;">
-            <span class="ol-action-icon" aria-hidden="true">
-              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"/><polyline points="11 7 11 11 14 13"/>
-              </svg>
-            </span>
-            <span class="ol-action-main" data-i18n="onlineRecentRooms">Récents</span>
-            <span class="ol-action-sub" data-i18n="onlineRejoin3LastDesc">Reprendre une partie</span>
-          </button>
-
-          <button class="ol-action-btn ol-action-rejoin" id="online-rejoin-last" style="display:none;" type="button">
-            <span class="ol-action-icon" aria-hidden="true">
-              <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 .49-6.51"/>
-              </svg>
-            </span>
-            <span class="ol-action-main" data-i18n="onlineRejoinLast">Reprendre le dernier salon</span>
-            <span class="ol-action-sub" data-i18n="onlineRejoinLastDesc">Reconnexion rapide</span>
-          </button>
-        </div>
-
-        <!-- Panneau accordéon : Créer -->
-        <div class="ol-panel" id="online-create-panel">
-          <div class="ol-preview-box" id="online-code-preview-box" style="display:none;">
-            <div class="ol-preview-label" data-i18n="onlineCodePreview">Votre code de salon</div>
-            <div class="ol-preview-code-wrap">
-              <strong class="ol-preview-code" id="online-preview-code">——</strong>
-              <div class="ol-preview-dots">
-                <span></span><span></span><span></span><span></span>
-              </div>
-            </div>
-            <button class="ol-confirm-btn" id="online-preview-confirm" type="button">
-              <span data-i18n="onlineCodeConfirm">Créer ce salon</span>
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 8 7 12 13 4"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Panneau accordéon : Rejoindre -->
-        <div class="ol-panel" id="online-join-panel">
-          <div class="ol-join-wrap">
-            <div class="ol-join-label" data-i18n="onlineJoin">Code du salon</div>
-            <div class="ol-code-row">
-              <input class="online-code-input ol-code-input" id="online-room-code"
-                     inputmode="latin" autocomplete="off" spellcheck="false"
-                     maxlength="6" placeholder="· · · ·"
-                     style="text-transform:uppercase" aria-label="Code du salon" />
-              <button class="ol-connect-btn" id="online-connect" type="button" disabled>
-                <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="4 9 14 9"/><polyline points="9 4 14 9 9 14"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Panneau accordéon : Salons récents -->
-        <div class="ol-panel" id="online-recent-wrap">
-          <div class="ol-recent-header" data-i18n="onlineRecentRooms">Parties récentes</div>
-          <div class="online-recent-list" id="online-recent-list"></div>
-        </div>
-
-      </section>
-    </div><!-- /ol-col-setup -->
-
-    <!-- ─── Colonne droite : statut (hidden until connected) ── -->
-    <div class="ol-col-status" id="online-status" style="display:none;">
-
-      <!-- Statut texte -->
-      <div class="ol-status-banner">
-        <span class="ol-status-dot" id="ol-status-dot" aria-hidden="true"></span>
-        <span id="online-status-text" class="ol-status-text">—</span>
-      </div>
-
-      <!-- Joueurs -->
-      <div class="ol-players">
-        <div class="ol-player" id="ol-p1-slot">
-          <div class="ol-player-avatar">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="10" cy="7" r="3"/><path d="M3 17c0-3 3.134-5 7-5s7 2 7 5"/>
-            </svg>
-          </div>
-          <div class="ol-player-info">
-            <span class="ol-player-tag">J1</span>
-            <span class="ol-player-name" id="online-p1-name" data-i18n="onlineChipPending">En attente…</span>
-          </div>
-          <span class="ol-player-status-dot"></span>
-        </div>
-        <div class="ol-versus" aria-hidden="true">VS</div>
-        <div class="ol-player" id="ol-p2-slot">
-          <div class="ol-player-avatar">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="10" cy="7" r="3"/><path d="M3 17c0-3 3.134-5 7-5s7 2 7 5"/>
-            </svg>
-          </div>
-          <div class="ol-player-info">
-            <span class="ol-player-tag">J2</span>
-            <span class="ol-player-name" id="online-p2-name" data-i18n="onlineChipPending">En attente…</span>
-          </div>
-          <span class="ol-player-status-dot"></span>
-        </div>
-      </div>
-
-      <!-- Code de room + partage -->
-      <div class="ol-share-block" id="online-roomcode-row" style="display:none;">
-        <div class="ol-share-label" data-i18n="onlineShare">Invitez un ami</div>
-        <div class="ol-share-code-row">
-          <span class="ol-share-code" id="online-roomcode">—</span>
-          <button class="ol-icon-btn" id="online-copy-code" type="button"
-                  aria-label="Copier le code" data-i18n-aria-label="onlineCopyCodeAria" title="Copier le code">
-            <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="6" y="6" width="9" height="9" rx="2"/><path d="M3 12V3h9"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Panneau inviter -->
-        <button class="ol-invite-toggle" id="online-invite-toggle" type="button" aria-expanded="false">
+    <!-- Code + partage -->
+    <div id="online-roomcode-row" style="display:none;">
+      <div class="ol-code-row">
+        <span class="ol-code-label" data-i18n="onlineShare">Code :</span>
+        <span class="ol-code-val" id="online-roomcode">—</span>
+        <button class="ol-copy-btn" id="online-copy-code" type="button" title="Copier le code">
           <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 12.5c0 .83-.18 1.62-.5 2.33L12 12.5l-.5-4.5 4.5-.5c.32.71.5 1.5.5 2.5z" opacity=".0"/>
-            <path d="M2 9l7-7 2 2-5 5 3 3-2 2-5-5z"/><path d="M12 2l4 4-6 6"/>
-          </svg>
-          <span data-i18n="onlineInviteBtn">Partager l'invitation</span>
-          <svg class="ol-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <polyline points="2 4 6 8 10 4"/>
+            <rect x="6" y="6" width="9" height="9" rx="2"/><path d="M3 12V3h9"/>
           </svg>
         </button>
-
-        <div class="ol-invite-panel" id="online-invite-panel" role="region">
-          <div class="ol-invite-row">
-            <span class="ol-inv-label" data-i18n="onlinePanelCode">Code</span>
-            <span class="ol-inv-value" id="inv-code-val">—</span>
-            <button class="ol-inv-btn" id="inv-copy-code-btn" type="button">Copier</button>
-          </div>
-          <div class="ol-invite-row">
-            <span class="ol-inv-label" data-i18n="onlinePanelLink">Lien</span>
-            <span class="ol-inv-value" id="inv-link-val">…</span>
-            <button class="ol-inv-btn" id="inv-copy-link-btn" type="button">Copier</button>
-          </div>
-          <div class="ol-invite-row" id="inv-share-row" style="display:none;">
-            <span class="ol-inv-label" data-i18n="onlinePanelShare">Partager</span>
-            <span class="ol-inv-value" data-i18n="onlinePanelShareDesc">Partage rapide</span>
-            <button class="ol-inv-btn" id="inv-share-btn" type="button" data-i18n="onlinePanelShare">Partager</button>
-          </div>
-          <div class="ol-invite-row" id="inv-social-row">
-            <span class="ol-inv-label" data-i18n="onlinePanelNetworks">Réseaux</span>
-            <span class="ol-inv-value" data-i18n="onlinePanelNetworksDesc">WhatsApp · Telegram · Facebook · Messenger</span>
-            <div class="ol-inv-socials">
-              <button class="ol-inv-btn" id="inv-wa-btn" type="button">WhatsApp</button>
-              <button class="ol-inv-btn" id="inv-tg-btn" type="button">Telegram</button>
-              <button class="ol-inv-btn" id="inv-fb-btn" type="button">Facebook</button>
-              <button class="ol-inv-btn" id="inv-ms-btn" type="button">Messenger</button>
-            </div>
-          </div>
-        </div>
       </div>
-
-      <!-- Revanche -->
-      <div class="ol-rematch" id="online-rematch" style="display:none;">
-        <div class="ol-rematch-title" data-i18n="onlineRematchHint">Proposer une revanche</div>
-        <div class="ol-rematch-row" aria-label="Rematch readiness">
-          <span class="ol-rematch-chip" id="online-rm1-chip">J1</span>
-          <span class="ol-rematch-divider" aria-hidden="true">·</span>
-          <span class="ol-rematch-chip" id="online-rm2-chip">J2</span>
-        </div>
-        <button class="ol-rematch-btn" id="online-rematch-ready-btn" type="button" data-i18n="onlineReadyRematch">Je suis prêt</button>
-        <p class="ol-rematch-note" data-i18n="onlineRematchNote">Les couleurs alternent à chaque revanche.</p>
-      </div>
-
-      <!-- Lancer -->
-      <button class="ol-start-btn" id="online-start" style="display:flex;" type="button">
-        <span class="ol-start-icon" aria-hidden="true">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M5 4l12 6-12 6V4z"/></svg>
-        </span>
-        <span class="ol-start-text">
-          <span id="online-start-label" data-i18n="onlineStart">Lancer la partie</span>
-          <span class="ol-start-sub" id="online-start-desc" data-i18n="onlineStartDesc">Quand 2 joueurs sont connectés</span>
-        </span>
+      <button class="ol-invite-btn" id="chal-share-smart" type="button">
+        ⚔️ <span data-i18n="onlineInviteBtn">Envoyer le défi</span>
       </button>
+    </div>
 
-    </div><!-- /ol-col-status -->
+    <!-- Revanche -->
+    <div id="online-rematch" style="display:none;">
+      <div class="ol-rematch-row">
+        <span class="ol-rematch-chip" id="online-rm1-chip">J1</span>
+        <span>·</span>
+        <span class="ol-rematch-chip" id="online-rm2-chip">J2</span>
+      </div>
+      <button class="ol-rematch-btn" id="online-rematch-ready-btn" type="button" data-i18n="onlineReadyRematch">Je suis prêt</button>
+    </div>
 
-  </div><!-- /ol-body -->
+    <!-- Countdown + Lancer -->
+    <div id="online-autostart-banner">
+      <span>⚔️ <span data-i18n="onlineAutoStartIn">Partie dans</span></span>
+      <span class="autostart-count" id="autostart-count">3</span>
+      <button id="autostart-cancel-btn">✕</button>
+    </div>
 
-  <button class="back-btn" data-i18n="backToModes" id="back-to-modes-from-online-btn" type="button">Retour aux modes</button>
+    <button class="ol-start-btn" id="online-start" style="display:none;" type="button">
+      ▶ <span id="online-start-label" data-i18n="onlineStart">Lancer la partie</span>
+    </button>
+
+  </div><!-- /online-status -->
+
+  <!-- Récents (compacts) -->
+  <div id="online-recent-wrap" style="display:none;">
+    <div class="online-recent-list" id="online-recent-list"></div>
+  </div>
+
+  <button class="back-btn" data-i18n="backToModes" id="back-to-modes-from-online-btn" type="button">← <span data-i18n="backToModes">Retour</span></button>
+
+  <!-- IDs fantômes pour compat JS -->
+  <span id="ol-p1-slot" style="display:none"></span>
+  <span id="ol-p2-slot" style="display:none"></span>
+  <span id="online-start-desc" style="display:none"></span>
 </div>
 <div class="selection-area" id="ai-difficulty-selection-area">
 <h2 data-i18n="chooseAIDifficulty">Choisir la difficulté de l'ordinateur</h2>
@@ -14569,6 +13065,20 @@ Patrimoine Culturel Amazigh • Jeu Traditionnel Kabyle
 👁 Mode Spectateur
 </div>
 <div id="drag-ghost"></div>
+<!-- Modale nom — auto-join depuis lien défi -->
+<div id="online-name-modal-overlay">
+  <div class="online-name-modal">
+    <div class="onm-sword">⚔️</div>
+    <div class="onm-challenger" id="onm-challenger-name">Un joueur</div>
+    <div class="onm-kabyle" id="onm-kabyle-text">icqarrew-ik ɣef Tiddas !</div>
+    <div class="onm-subtitle">Entre ton pseudo pour rejoindre le duel</div>
+    <input class="onm-input" id="onm-name-input" maxlength="24" placeholder="Ton pseudo…" autocomplete="nickname" inputmode="text" />
+    <button class="onm-btn" id="onm-accept-btn" disabled>⚔️ Accepter le défi</button>
+  </div>
+</div>
+
+<div id="challenge-accepted-toast" aria-live="assertive" aria-atomic="true"></div>
+
 <div class="save-notification" id="save-notification">
 <span data-i18n="savedGameFound" id="save-notification-text">Partie sauvegardée trouvée. Reprendre ?</span>
 <div class="save-btns">
@@ -15291,9 +13801,7 @@ let online = {
   pollTimer: 0,
   lastSeenRev: -1,
   parseReady: false,
-  fetching: false,  // race-condition guard for polling
-  acceptanceNotifiedFor: null,
-  autoStartTriggeredFor: null
+  fetching: false  // race-condition guard for polling
 };
 
 const onlineEls = {
@@ -15376,6 +13884,8 @@ function _randCode(len=4) {
 
 function onlineDisconnect() {
   if (online.pollTimer) { clearInterval(online.pollTimer); online.pollTimer = 0; }
+  // Cancel any pending debounced send
+  if (_onlineSendDebounceTimer) { clearTimeout(_onlineSendDebounceTimer); _onlineSendDebounceTimer = null; }
   online.matchId = null;
   online.room = null;
   online.role = null;
@@ -15388,8 +13898,6 @@ function onlineDisconnect() {
   online.suppressSend = false;
   online.lastSeenRev = -1;
   online.fetching = false;
-  online.acceptanceNotifiedFor = null;
-  online.autoStartTriggeredFor = null;
 }
 
 async function _fetchMatchByCode(code) {
@@ -15404,58 +13912,6 @@ async function _fetchMatchById(id) {
   return await q.get(id);
 }
 
-
-function _notifyChallengeAccepted(playerName) {
-  const cleanName = normalizeName(playerName, t('defaultPlayer2', 'Joueur 2')) || t('defaultPlayer2', 'Joueur 2');
-  const title = t('onlineAcceptedNotifTitle', 'Défi accepté');
-  const body = t('onlineAcceptedNotifBody', 'Défis accepté par {name}').replace('{name}', cleanName);
-  const kabyle = t('onlineAcceptedNotifKabyle', '{name} icqarrew-ik').replace('{name}', cleanName);
-  const message = `${body} · ${kabyle}`;
-  try { if (typeof showToast === 'function') showToast(message, 5000); } catch(_) {}
-  try { if (navigator && typeof navigator.vibrate === 'function') navigator.vibrate([180, 100, 180]); } catch(_) {}
-  try {
-    const prevTitle = document.title;
-    let ticks = 0;
-    if (online._acceptedBlinkTimer) clearInterval(online._acceptedBlinkTimer);
-    online._acceptedBlinkTimer = setInterval(() => {
-      document.title = (ticks % 2 === 0) ? `(${cleanName}) ${title}` : prevTitle;
-      ticks += 1;
-      if (ticks >= 8) {
-        clearInterval(online._acceptedBlinkTimer);
-        online._acceptedBlinkTimer = null;
-        document.title = prevTitle;
-      }
-    }, 900);
-  } catch(_) {}
-  try {
-    if (!('Notification' in window)) return;
-    const send = () => {
-      try { new Notification(title, { body: message, tag: `tiddas-accepted-${online.room || ''}`, renotify: true, requireInteraction: false }); } catch(_) {}
-    };
-    if (Notification.permission === 'granted') send();
-    else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then((perm) => { if (perm === 'granted') send(); }).catch(() => {});
-    }
-  } catch(_) {}
-}
-
-function _ensureOnlineJoinName() {
-  const existing = _getOnlineNameSafe('');
-  if (existing) return existing;
-  const answer = window.prompt(
-    t('onlineAcceptNamePrompt', 'Entrez votre nom pour accepter le défi :'),
-    ''
-  );
-  const clean = normalizeName(answer, '');
-  if (!clean) {
-    try { if (typeof showToast === 'function') showToast(t('onlineAcceptNameRequired', 'Nom requis pour rejoindre le défi.'), 3000); } catch(_) {}
-    return '';
-  }
-  try { localStorage.setItem(ONLINE_NAME_KEY, clean); } catch(_) {}
-  if (onlineEls.inputName) onlineEls.inputName.value = clean;
-  return clean;
-}
-
 function _applyLobbyStateFromMatch(match) {
   const status = match.get('status') || 'waiting';
   const p1 = match.get('p1Id') || null;
@@ -15465,6 +13921,9 @@ function _applyLobbyStateFromMatch(match) {
   const p2Name = match.get('p2Name') || null;
   if (onlineEls.p1Name) onlineEls.p1Name.textContent = p1Name || '—';
   if (onlineEls.p2Name) onlineEls.p2Name.textContent = p2Name || '—';
+  // Show matchup row only when both players known
+  const matchupEl = document.getElementById('online-matchup');
+  if (matchupEl) matchupEl.style.display = (p1Name && p2Name) ? '' : 'none';
 
   // Determine role if not already set (slot in DB)
   if (!online.role) {
@@ -15472,23 +13931,10 @@ function _applyLobbyStateFromMatch(match) {
     else if (p2 === onlinePlayerId) { online.role = 2; online.isHost = false; }
   }
 
+  // ── Détecter défi accepté ────────────────────────────────
+  try { if (typeof window._checkChallengeAccepted === 'function') window._checkChallengeAccepted(match); } catch(_) {}
+
   online.ready = !!(p1 && p2);
-
-  if (online.isHost && online.ready && p2) {
-    const acceptedKey = `${match.id}:${p2}:${p2Name || ''}`;
-    if (online.acceptanceNotifiedFor !== acceptedKey) {
-      online.acceptanceNotifiedFor = acceptedKey;
-      _notifyChallengeAccepted(p2Name || t('defaultPlayer2', 'Joueur 2'));
-    }
-  }
-
-  if (online.isHost && online.ready && status === 'waiting') {
-    const autoKey = `${match.id}:${Number(match.get('gameId') || 0)}:${p2 || ''}`;
-    if (online.autoStartTriggeredFor !== autoKey) {
-      online.autoStartTriggeredFor = autoKey;
-      setTimeout(() => { try { onlineStartMatch_Back4App(); } catch(_) {} }, 350);
-    }
-  }
 
   // Rematch readiness flags (persisted in room)
   const rm1 = !!match.get('rm1');
@@ -15565,9 +14011,19 @@ function _applyLobbyStateFromMatch(match) {
 
 
 
+// ── Adaptive polling: fast during active play, slow in lobby ──
+const _POLL_FAST_MS  = 800;
+const _POLL_SLOW_MS  = 2500;
+const _POLL_SLOW_AFTER_N_EMPTY = 4; // switch to slow after N polls with no new rev
+let _pollNoChangeCount = 0;
+let _pollCurrentInterval = _POLL_FAST_MS;
+
 function _startPolling() {
   if (online.pollTimer) return;
-  online.pollTimer = setInterval(async () => {
+  _pollNoChangeCount = 0;
+  _pollCurrentInterval = _POLL_FAST_MS;
+
+  const tick = async () => {
     if (!online.connected || !online.matchId) return;
     if (online.fetching) return; // prevent concurrent requests
     online.fetching = true;
@@ -15578,11 +14034,26 @@ function _startPolling() {
       const rev = Number(match.get('rev') || 0);
       if (rev !== online.lastSeenRev) {
         online.lastSeenRev = rev;
+        _pollNoChangeCount = 0;
+        // Switch back to fast polling on activity
+        if (_pollCurrentInterval !== _POLL_FAST_MS) {
+          _pollCurrentInterval = _POLL_FAST_MS;
+          clearInterval(online.pollTimer);
+          online.pollTimer = setInterval(tick, _pollCurrentInterval);
+        }
         const payload = match.get('payload') || null;
-
         if (payload && payload.state) {
           onlineApplyState(payload);
           if (typeof showScreen === 'function') showScreen('game-play-area');
+        }
+      } else {
+        _pollNoChangeCount++;
+        // After N empty polls in lobby/waiting, slow down to reduce Back4App requests
+        const isActiveGame = gameMode === 'online' && state && state.phase && !state.winner;
+        if (!isActiveGame && _pollNoChangeCount >= _POLL_SLOW_AFTER_N_EMPTY && _pollCurrentInterval !== _POLL_SLOW_MS) {
+          _pollCurrentInterval = _POLL_SLOW_MS;
+          clearInterval(online.pollTimer);
+          online.pollTimer = setInterval(tick, _pollCurrentInterval);
         }
       }
     } catch (e) {
@@ -15590,7 +14061,9 @@ function _startPolling() {
     } finally {
       online.fetching = false;
     }
-  }, 800);
+  };
+
+  online.pollTimer = setInterval(tick, _pollCurrentInterval);
 }
 
 async function onlineConnectToRoom_Back4App(code, creating) {
@@ -15607,6 +14080,14 @@ async function onlineConnectToRoom_Back4App(code, creating) {
   _show(onlineEls.roomCodeRow, true);
   if (onlineEls.roomCode) onlineEls.roomCode.textContent = code;
   _show(onlineEls.btnStart, false);
+
+  // Connection timeout guard (12 s)
+  let _connTimeoutFired = false;
+  const _connTimeout = setTimeout(() => {
+    _connTimeoutFired = true;
+    onlineDisconnect();
+    _setOnlineStatus(t('onlineConnectTimeout', 'Connexion expirée (12 s). Vérifie ta connexion et réessaie.'));
+  }, 12000);
 
   try {
     if (creating) {
@@ -15682,14 +14163,24 @@ async function onlineConnectToRoom_Back4App(code, creating) {
     }
 
     online.lastSeenRev = -1;
+    clearTimeout(_connTimeout);
+    if (_connTimeoutFired) return; // timeout already handled
     _startPolling();
   } catch (e) {
+    clearTimeout(_connTimeout);
+    if (_connTimeoutFired) return;
     onlineDisconnect();
     _setOnlineStatus(t('onlineErrorPrefix', 'Erreur : {msg}').replace('{msg}', (e && e.message ? e.message : String(e))));
   }
 }
 
-function onlineSendState(reason='sync') {
+// ── Debounce timer for non-critical sends (avoids flooding during animations) ──
+let _onlineSendDebounceTimer = null;
+const _ONLINE_SEND_DEBOUNCE_MS = 180;
+// Critical reasons bypass debounce and flush immediately
+const _ONLINE_SEND_CRITICAL = new Set(['start', 'surrender', 'sync', 'rematch']);
+
+function _doSendState(reason) {
   if (gameMode !== 'online') return;
   if (!online.connected || online.suppressSend) return;
   if (!_ensureParseReady()) return;
@@ -15733,6 +14224,22 @@ function onlineSendState(reason='sync') {
       if (onlineEls.statusText) _setOnlineStatus(t('onlineSendError', "Erreur d'envoi. Vérifie ta connexion Back4App."));
     }
   })();
+}
+
+function onlineSendState(reason='sync') {
+  if (online.suppressSend) return;
+  // Critical reasons (game start, surrender, etc.) flush immediately
+  if (_ONLINE_SEND_CRITICAL.has(reason)) {
+    if (_onlineSendDebounceTimer) { clearTimeout(_onlineSendDebounceTimer); _onlineSendDebounceTimer = null; }
+    _doSendState(reason);
+    return;
+  }
+  // Non-critical (autosave) are debounced to collapse rapid saves during animations
+  if (_onlineSendDebounceTimer) clearTimeout(_onlineSendDebounceTimer);
+  _onlineSendDebounceTimer = setTimeout(() => {
+    _onlineSendDebounceTimer = null;
+    _doSendState(reason);
+  }, _ONLINE_SEND_DEBOUNCE_MS);
 }
 
 async function onlineStartMatch_Back4App() {
@@ -16504,6 +15011,7 @@ onlineStart: "Lancer la partie",
 onlineStartDesc: "Quand 2 joueurs sont connectés",
 onlineNotConfigured: "Le serveur en ligne n'est pas configuré. Consultez le README pour renseigner l'URL.",
 onlineNamePlaceholder: "Ex: Lyne",
+onlineJoinCodePlaceholder: "Code ami",
 onlineCopyCodeAria: "Copier le code",
 onlineChooseAction: "Choisis : créer ou rejoindre un salon.",
 onlineCodeCopied: "Code copié ✅",
@@ -16518,7 +15026,7 @@ onlineConnectingRoom: "Connexion au salon {code}…",
 onlineRoomNotFound: "Salon introuvable. Vérifie le code.",
 onlineGameFinished: "Cette partie est terminée.",
 onlineRoomFull: "Salon complet (2 joueurs).",
-onlineNetworkError: "Erreur réseau Back4App. Vérifie les permissions (CLP) et ta connexion.",
+onlineConnectTimeout: "Connexion expirée (12 s). Vérifie ta connexion et réessaie.",
 onlineParseNotReady: "Back4App n'est pas configuré ou Parse SDK non chargé.",
 onlineSendError: "Erreur d'envoi. Vérifie ta connexion Back4App.",
 onlineNoRoomActive: "Pas de salon actif.",
@@ -16537,9 +15045,6 @@ onlineInviteBtn: "Inviter un ami",
 onlinePanelCode: "Code seul",
 onlinePanelLink: "Lien de partie",
 onlinePanelShare: "Partager",
-onlinePanelShareDesc: "Partage rapide",
-onlinePanelNetworks: "Réseaux",
-onlinePanelNetworksDesc: "WhatsApp · Telegram · Facebook · Messenger",
 onlineAutoJoinDetected: "Salon détecté : {code}",
 onlineAutoJoinWaiting: "Entrez votre nom pour rejoindre",
 onlineJoinParam: "Connexion automatique à {code}…",
@@ -16552,15 +15057,17 @@ onlineLinkCopied: "Lien copié ✅",
 onlineCopyLinkAria: "Copier le lien",
 onlineShareLinkAria: "Partager",
 onlineShareText: "Rejoins mon salon Tiddas :",
-onlineAcceptedNotifTitle: "Défi accepté",
-onlineAcceptedNotifBody: "Défis accepté par {name}",
-onlineAcceptedNotifKabyle: "{name} icqarrew-ik",
-onlineAcceptNamePrompt: "Entrez votre nom pour accepter le défi :",
-onlineAcceptNameRequired: "Nom requis pour rejoindre le défi.",
-onlinePanelSocial: "Réseaux",
-onlineChallengeShareIntro: "Défi Tiddas : clique et rejoins-moi immédiatement.",
-onlineChallengeShareTitle: "Défi Tiddas en ligne",
-onlineChallengeShareText: "Je te lance un défi sur Tiddas. Clique sur le lien et la partie démarre automatiquement : {link}",
+onlineChallengeBtn: "⚔️ Lancer un défi",
+onlineChallengeMsg: "Envoie ce défi à un ami :",
+onlineCopied: "Copié ✅",
+onlineCopyCode: "Copier",
+onlineCopyLink: "Copier lien",
+onlineShareBtn: "Partager",
+onlineChallengeShareText: "{name} te défie sur Tiddas ! Clique pour rejoindre la partie :",
+onlineChallengeWhatsApp: "Je te défie sur Tiddas ! Rejoins ma partie ici :",
+onlineChallengeAcceptedTitle: "Défi accepté !",
+onlineChallengeAcceptedSub: "icqarrew-ik — La partie commence !",
+onlineWaitsForYou: "t'attend — Entre ton nom",
 statsSectionGlobal: "Vue globale",
 statsSectionEfficiency: "Efficacité",
 statsSectionByMode: "Par mode",
@@ -16914,6 +15421,7 @@ onlineShare: "awi tasarut-a :",
 onlineStart: "Bdu urar",
 onlineStartDesc: "Qqimen-d i 2 yimyurar",
 onlineNamePlaceholder: "Amedya: Akli",
+onlineJoinCodePlaceholder: "Tasarut n umeddakel",
 onlineCopyCodeAria: "Glu tasarut",
 onlineChooseAction: "Fren: bnu neɣ qqim ɣer teslaḍt.",
 onlineCodeCopied: "Tasarut tettwanqal ✅",
@@ -16928,7 +15436,7 @@ onlineConnectingRoom: "Tuqqna ɣer teslaḍt {tasarut}…",
 onlineRoomNotFound: "Ulac taslaḍt-ayi. senqed tasarut-ik.",
 onlineGameFinished: "Yekkfa Wurar.",
 onlineRoomFull: "taslaḍt-ayi yeččur (2 yimyuraren).",
-onlineNetworkError: "Tuccḍa n uzeṭṭa Back4App. Selken izerfan (CLP) akked tuqqna-inek.",
+onlineConnectTimeout: "Tuqqna tegra (12 tasint). Senqed uzeṭṭa-inek tagerralt.",
 onlineParseNotReady: "Back4App ur yettuseɣwer ara neɣ Parse ur yuli ara.",
 onlineSendError: "Tuccḍa deg tuznit. Senqed tuqqna Back4App.",
 onlineNoRoomActive: "Ulac taslaḍt iheyyan.",
@@ -16948,9 +15456,6 @@ onlineInviteBtn: "📤 Ɛreḍ-d ameddakul",
 onlinePanelCode: "Tasarut kan",
 onlinePanelLink: "Aseɣwen n wurar",
 onlinePanelShare: "Azen Tinnubgga",
-onlinePanelShareDesc: "Azen srid",
-onlinePanelNetworks: "Iẓeḍwan",
-onlinePanelNetworksDesc: "WhatsApp · Telegram · Facebook · Messenger",
 onlineAutoJoinDetected: "Taslaḍt theyya : {code}",
 onlineAutoJoinWaiting: "sekcem isem-ik i wakken ad d-qqimeḍ ɣer wurar",
 onlineJoinParam: "Tuqqna ɣer {code}…",
@@ -16963,15 +15468,17 @@ onlineLinkCopied: "Aseɣwen yettwanqal ✅",
 onlineCopyLinkAria: "Nqel aseɣwen",
 onlineShareLinkAria: "azen i weḥbib",
 onlineShareText: "Qqim ɣer teslaḍt n Tiddas:",
-onlineAcceptedNotifTitle: "Aḥellil yettwaqbel",
-onlineAcceptedNotifBody: "Défis accepté par {name}",
-onlineAcceptedNotifKabyle: "{name} icqarrew-ik",
-onlineAcceptNamePrompt: "Sekcem isem-ik i wakken ad tqebleḍ aḥellil :",
-onlineAcceptNameRequired: "Ilaq yisem i wakken ad tqimeḍ ɣer uḥellil.",
-onlinePanelSocial: "Iẓeḍwan",
-onlineChallengeShareIntro: "Aḥellil n Tiddas: sit ɣef useɣwen sakin qqim-d srid.",
-onlineChallengeShareTitle: "Aḥellil Tiddas srid",
-onlineChallengeShareText: "Ad ak-d-sseɣliɣ aḥellil di Tiddas. Sit ɣef useɣwen, urar ad yebdu srid: {link}",
+onlineChallengeBtn: "⚔️ Feggi-d asnekcam",
+onlineChallengeMsg: "Azen asnekcam-a i umeddakul:",
+onlineCopied: "Yettwanqal ✅",
+onlineCopyCode: "Anqel",
+onlineCopyLink: "Anqel aseɣwen",
+onlineShareBtn: "Bder-t",
+onlineChallengeShareText: "{name} icqarrew-ik ɣef Tiddas! S'qqim ɣer wurar:",
+onlineChallengeWhatsApp: "Icqarrew-ik ɣef Tiddas! Qqim ɣer teslaḍt-iw:",
+onlineChallengeAcceptedTitle: "Asnekcam yettwaqbel!",
+onlineChallengeAcceptedSub: "icqarrew-ik — Awrar yessekna!",
+onlineWaitsForYou: "yettreǧǧu-k — Sekcem isem-ik",
 statsSectionGlobal: "Agemmuḍ s umata",
 statsSectionActivity: "Tamyanți",
 statsPlacementsPerGame: "Asnulfu / timlilit",
@@ -17350,6 +15857,7 @@ onlineStart: "Start match",
 onlineStartDesc: "When 2 players are connected",
 onlineNotConfigured: "Online server is not configured. See README to set the URL.",
 onlineNamePlaceholder: "e.g., Boussad",
+onlineJoinCodePlaceholder: "Friend's code",
 onlineCopyCodeAria: "Copy the code",
 onlineChooseAction: "Choose: create or join a room.",
 onlineCodeCopied: "Code copied ✅",
@@ -17364,7 +15872,7 @@ onlineConnectingRoom: "Connecting to room {code}…",
 onlineRoomNotFound: "Room not found. Check the code.",
 onlineGameFinished: "This game is finished.",
 onlineRoomFull: "Room is full (2 players).",
-onlineNetworkError: "Back4App network error. Check permissions (CLP) and your connection.",
+onlineConnectTimeout: "Connection timed out (12 s). Check your connection and try again.",
 onlineParseNotReady: "Back4App isn't configured or Parse SDK isn't loaded.",
 onlineSendError: "Send error. Check your Back4App connection.",
 onlineNoRoomActive: "No active room.",
@@ -17383,9 +15891,6 @@ onlineInviteBtn: "📤 Invite a friend",
 onlinePanelCode: "Code only",
 onlinePanelLink: "Game link",
 onlinePanelShare: "Share",
-onlinePanelShareDesc: "Quick share",
-onlinePanelNetworks: "Networks",
-onlinePanelNetworksDesc: "WhatsApp · Telegram · Facebook · Messenger",
 onlineAutoJoinDetected: "Room detected: {code}",
 onlineAutoJoinWaiting: "Enter your name to join",
 onlineJoinParam: "Auto-connecting to {code}…",
@@ -17398,14 +15903,17 @@ onlineLinkCopied: "Link copied ✅",
 onlineCopyLinkAria: "Copy link",
 onlineShareLinkAria: "Share",
 onlineShareText: "Join my Tiddas room:",
-onlineAcceptedNotifTitle: "Challenge accepted",
-onlineAcceptedNotifBody: "Challenge accepted by {name}",
-onlineAcceptedNotifKabyle: "{name} icqarrew-ik",
-onlineAcceptNamePrompt: "Enter your name to accept the challenge:",
-onlineAcceptNameRequired: "A name is required to join the challenge.",
-onlinePanelSocial: "Social",
-onlineChallengeShareIntro: "Tiddas challenge: tap and join instantly.",
-onlineChallengeShareText: "I challenge you on Tiddas. Tap the link and the game will start automatically: {link}",
+onlineChallengeBtn: "⚔️ Send a Challenge",
+onlineChallengeMsg: "Send this challenge to a friend:",
+onlineCopied: "Copied ✅",
+onlineCopyCode: "Copy",
+onlineCopyLink: "Copy link",
+onlineShareBtn: "Share",
+onlineChallengeShareText: "{name} challenges you on Tiddas! Click to join:",
+onlineChallengeWhatsApp: "I challenge you on Tiddas! Join my game here:",
+onlineChallengeAcceptedTitle: "Challenge accepted!",
+onlineChallengeAcceptedSub: "icqarrew-ik — The game starts!",
+onlineWaitsForYou: "is waiting — Enter your name",
 statsSectionGlobal: "Overview",
 statsSectionEfficiency: "Efficiency",
 statsSectionByMode: "By mode",
@@ -21604,6 +20112,14 @@ _clearDragUI(fromIdx);
 
 if (toIdx !== null && fromIdx !== null) {
 // Utilise la logique existante (mill obligatoire, etc.)
+// Guard: in online mode only the current player may drag
+if (gameMode === 'online' && typeof isMyTurnOnline === 'function' && !isMyTurnOnline()) {
+  if (typeof showStatusError === 'function') showStatusError('notYourTurn');
+  state.selected = null;
+  renderBoard();
+  updateStatus();
+  return;
+}
 moveHistory.push(deepCopy(state));
 handleMove(toIdx);
 } else {
@@ -21934,6 +20450,28 @@ setSafeHTML(toastEl, String(message ?? ''));
 toastEl.classList.add('show');
 window.clearTimeout(toastTimer);
 toastTimer = window.setTimeout(() => toastEl.classList.remove('show'), ms);
+}
+
+// ─────────────────────────────────────────────────────────
+// NOTIFICATION DÉFI ACCEPTÉ — "icqarrew-ik"
+// ─────────────────────────────────────────────────────────
+function _showChallengeAcceptedNotification(playerName) {
+  try {
+    const lang = (typeof currentLanguage !== 'undefined') ? currentLanguage : 'fr';
+    const msg = lang === 'kab'
+      ? `⚔️ ${playerName} icqarrew-ik — Awrar yessekna !`
+      : lang === 'en'
+      ? `⚔️ ${playerName} accepted — Game starting!`
+      : `⚔️ ${playerName} icqarrew-ik — La partie commence !`;
+    if (typeof showToast === 'function') showToast(msg, 5000);
+    try { if (navigator.vibrate) navigator.vibrate([120, 60, 180]); } catch(_) {}
+  } catch(_) {}
+}
+
+function _dismissChallengeBanner(b) { try { b && b.remove && b.remove(); } catch(_) {} }
+
+function _htmlEscape(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ---------------------------------------------------------
@@ -23625,7 +22163,7 @@ showScreen('player-setup-area');
 //  ONLINE LOBBY — wiring v2 (guided steps + invite panel)
 // ═══════════════════════════════════════════════════════
 
-// Auto-join from URL param ?room=CODE&join=1 — runs once (300ms after DOM ready)
+// Auto-join from URL param ?room=CODE&join=1&challenger=NAME — runs once (300ms after DOM ready)
 let _autoJoinDone = false;
 function _tryAutoJoinFromUrl() {
   if (_autoJoinDone) return;
@@ -23633,7 +22171,7 @@ function _tryAutoJoinFromUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
     const roomParam = (params.get('room') || '').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-    const joinParam  = params.get('join');
+    const challengerName = (() => { try { return decodeURIComponent(params.get('challenger') || '').trim(); } catch(_) { return ''; } })();
     if (!roomParam) return;
     // Clean URL
     try { history.replaceState({}, '', window.location.pathname); } catch(_) {}
@@ -23642,31 +22180,86 @@ function _tryAutoJoinFromUrl() {
     const onlineBtn2 = document.getElementById('play-online-btn');
     if (onlineBtn2) onlineBtn2.click();
     else if (typeof showScreen === 'function') showScreen('online-lobby-area');
-    // Pre-fill code field
+    // Pre-fill code
     setTimeout(() => {
       try {
         const inp = document.getElementById('online-room-code');
         if (inp) { inp.value = roomParam; inp.dispatchEvent(new Event('input')); }
-        // Open join accordion
         const jp = document.getElementById('online-join-panel');
         if (jp) jp.classList.add('open');
-        // Show toast
-        const msg = t('onlineAutoJoinDetected','Salon détecté : {code}').replace('{code}', roomParam);
-        if (typeof showToast === 'function') showToast(msg, 2500);
-        // If name already known → connect; else focus name input
-        const joinName = _ensureOnlineJoinName();
-        if (joinName) {
+
+        const savedName = (() => { try { return localStorage.getItem('tiddas_online_name_v1') || ''; } catch(_) { return ''; } })();
+        if (savedName) {
+          // Name known → show brief toast and connect immediately
+          if (challengerName && typeof showToast === 'function') {
+            showToast(`⚔️ ${challengerName} icqarrew-ik !`, 3000);
+          }
           setTimeout(() => { try { onlineConnectToRoom(roomParam, false); } catch(_) {} }, 400);
         } else {
-          const glob = document.getElementById('online-status-global');
-          if (glob) glob.textContent = t('onlineAutoJoinWaiting','Entrez votre nom pour rejoindre');
-          const nameInp = document.getElementById('online-your-name');
-          if (nameInp) nameInp.focus();
+          // No name → show the name modal
+          _showNameModal(challengerName, roomParam);
         }
       } catch(_) {}
     }, 350);
   } catch(_) {}
 }
+
+// Show elegant name modal for incoming challenge
+function _showNameModal(challengerName, roomCode) {
+  try {
+    const overlay  = document.getElementById('online-name-modal-overlay');
+    const nameDisp = document.getElementById('onm-challenger-name');
+    const kabyle   = document.getElementById('onm-kabyle-text');
+    const nameInp  = document.getElementById('onm-name-input');
+    const acceptBtn= document.getElementById('onm-accept-btn');
+    if (!overlay) {
+      // Fallback to old banner
+      _showChallengerIncomingBanner(challengerName, roomCode);
+      return;
+    }
+    if (nameDisp) nameDisp.textContent = challengerName || 'Un joueur';
+    if (kabyle)   kabyle.textContent   = challengerName ? `${challengerName} icqarrew-ik ɣef Tiddas !` : 'icqarrew-ik ɣef Tiddas !';
+
+    overlay.classList.add('visible');
+    try { if (navigator.vibrate) navigator.vibrate([100, 50, 100]); } catch(_) {}
+
+    // Validation input
+    if (nameInp) {
+      nameInp.value = '';
+      nameInp.focus();
+      const _validate = () => {
+        if (acceptBtn) acceptBtn.disabled = nameInp.value.trim().length < 2;
+      };
+      nameInp.oninput = _validate;
+      nameInp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); if (!acceptBtn.disabled) acceptBtn.click(); } };
+    }
+
+    // Accept button
+    if (acceptBtn) {
+      acceptBtn.onclick = () => {
+        const n = (nameInp?.value || '').trim();
+        if (!n || n.length < 2) return;
+        try { localStorage.setItem('tiddas_online_name_v1', n); } catch(_) {}
+        const mainInp = document.getElementById('online-your-name');
+        if (mainInp) mainInp.value = n;
+        overlay.classList.remove('visible');
+        setTimeout(() => { try { onlineConnectToRoom(roomCode, false); } catch(_) {} }, 300);
+      };
+    }
+  } catch(_) {
+    _showChallengerIncomingBanner(challengerName, roomCode);
+  }
+}
+
+// Banner "X te défie !" côté challengé
+function _showChallengerIncomingBanner(challengerName, roomCode) {
+  try {
+    const msg = `⚔️ ${challengerName} icqarrew-ik — Entre ton pseudo pour rejoindre`;
+    if (typeof showToast === 'function') showToast(msg, 6000);
+    try { if (navigator.vibrate) navigator.vibrate([100, 50, 100]); } catch(_) {}
+  } catch(_) {}
+}
+
 setTimeout(_tryAutoJoinFromUrl, 100);
 
 const onlineBtn = document.getElementById('play-online-btn');
@@ -23781,63 +22374,42 @@ if (onlineBtn) {
     // Disable actions if not configured
     const __onlineOk = _isBack4AppConfigured();
     if (onlineEls.btnCreate)  onlineEls.btnCreate.disabled  = !__onlineOk;
-    if (onlineEls.btnConnect) onlineEls.btnConnect.disabled = true; // enabled by validation
+    if (onlineEls.btnConnect) onlineEls.btnConnect.disabled = true; // enabled by code validation
 
-    // ── Créer un salon (avec prévisualisation code) ──────────
+    // ── CRÉER — connexion directe sans confirmation ──────────
     if (onlineEls.btnCreate) onlineEls.btnCreate.onclick = () => {
-      _closeAllAccordions();
-      const code = _randCode(4);
-      const previewBox = document.getElementById('online-code-preview-box');
-      const previewCode = document.getElementById('online-preview-code');
-      const confirmBtn = document.getElementById('online-preview-confirm');
-      if (previewBox && previewCode) {
-        previewCode.textContent = code;
-        previewBox.style.display = '';
-        _openAccordion('online-create-panel');
-        if (confirmBtn) {
-          confirmBtn.onclick = () => {
-            previewBox.style.display = 'none';
-            _closeAccordion('online-create-panel');
-            _showStatusCard(true);
-            onlineConnectToRoom(code, true);
-          };
+      if (!__onlineOk) { if (typeof showToast === 'function') showToast('Mode en ligne non configuré.', 3000); return; }
+      // Request notification permission proactively (user gesture)
+      try {
+        if ('Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
         }
-      } else {
-        _showStatusCard(true);
-        onlineConnectToRoom(code, true);
-      }
+      } catch(_) {}
+      const code = _randCode(4);
+      _showStatusCard(true);
+      onlineConnectToRoom(code, true);
     };
 
-    // ── Rejoindre ────────────────────────────────────────────
-    if (onlineEls.btnJoin) onlineEls.btnJoin.onclick = () => {
-      _closeAllAccordions();
-      _openAccordion('online-join-panel');
-      onlineEls.inputCode?.focus();
-    };
-
-    // ── Bouton "Salons récents" ───────────────────────────────
-    const recentToggleBtn = document.getElementById('online-recent-toggle');
-    if (recentToggleBtn) {
-      const rooms = loadRecentOnlineRooms();
-      recentToggleBtn.style.display = rooms.length > 0 ? '' : 'none';
-      recentToggleBtn.onclick = () => {
-        const alreadyOpen = document.getElementById('online-recent-wrap')?.classList.contains('open');
-        _closeAllAccordions();
-        if (!alreadyOpen) _openAccordion('online-recent-wrap');
-      };
-    }
-
-    // ── Bouton OK (connecter) ─────────────────────────────────
+    // ── REJOINDRE — entrée code inline, connecte dès 4 chars + Enter/clic ──
     if (onlineEls.btnConnect) onlineEls.btnConnect.onclick = () => {
       const code = (onlineEls.inputCode?.value || '').trim().toUpperCase();
       if (code.length < 4) {
         if (onlineEls.inputCode) onlineEls.inputCode.classList.add('input-error');
         return;
       }
-      _closeAccordion('online-join-panel');
       _showStatusCard(true);
       onlineConnectToRoom(code, false);
     };
+
+    // Enter key in code input
+    if (onlineEls.inputCode) {
+      onlineEls.inputCode.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const code = (onlineEls.inputCode.value || '').trim().toUpperCase();
+          if (code.length >= 4) { _showStatusCard(true); onlineConnectToRoom(code, false); }
+        }
+      });
+    }
 
     // ── Rejoindre dernier salon ──────────────────────────────
     try {
@@ -23847,21 +22419,28 @@ if (onlineBtn) {
         onlineEls.btnRejoinLast.onclick = () => {
           const c = String(lastRoom?.code || '').trim().toUpperCase();
           if (!c) return;
-          _closeAllAccordions();
           _showStatusCard(true);
           onlineConnectToRoom(c, false);
         };
       }
     } catch(_) {}
 
-    // ── Salons récents (bouton dans les actions) ─────────────
-    // Triggered via a separate button that toggles the accordion
-    const recentRooms = loadRecentOnlineRooms();
-    if (recentRooms.length > 0) {
-      // Add "recent" button dynamically if needed — or trigger on open
-      _closeAllAccordions();
-    }
+    // ── Salons récents ────────────────────────────────────────
     try { renderRecentOnlineRooms(); } catch(_) {}
+    try {
+      const recentToggleBtn = document.getElementById('online-recent-toggle');
+      if (recentToggleBtn) {
+        const rooms = loadRecentOnlineRooms();
+        recentToggleBtn.style.display = rooms.length > 0 ? '' : 'none';
+        recentToggleBtn.onclick = () => {
+          const wrap = document.getElementById('online-recent-wrap');
+          if (wrap) {
+            const showing = wrap.style.display !== 'none';
+            wrap.style.display = showing ? 'none' : '';
+          }
+        };
+      }
+    } catch(_) {}
 
     // ── Copier code ──────────────────────────────────────────
     if (onlineEls.btnCopy) onlineEls.btnCopy.onclick = async () => {
@@ -23873,129 +22452,132 @@ if (onlineBtn) {
       } catch(_) {}
     };
 
-    // ── Panneau Inviter un ami ───────────────────────────────
-    const inviteToggle = document.getElementById('online-invite-toggle');
-    const invitePanel  = document.getElementById('online-invite-panel');
-    const invCodeVal   = document.getElementById('inv-code-val');
-    const invLinkVal   = document.getElementById('inv-link-val');
-    const invShareRow  = document.getElementById('inv-share-row');
-    const invCopyCode  = document.getElementById('inv-copy-code-btn');
-    const invCopyLink  = document.getElementById('inv-copy-link-btn');
-    const invShareBtn  = document.getElementById('inv-share-btn');
-    const invWaBtn     = document.getElementById('inv-wa-btn');
-    const invTgBtn     = document.getElementById('inv-tg-btn');
-    const invFbBtn     = document.getElementById('inv-fb-btn');
-    const invMsBtn     = document.getElementById('inv-ms-btn');
-
-    const _inviteLink = (code) => {
+    // ── Partage défi — un seul bouton ────────────────────────
+    const _challengeLink = (code) => {
       const c = String(code||'').trim().toUpperCase();
-      return `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(c)}&join=1`;
-    };
-    const _inviteText = (code) => {
-      const c = String(code||'').trim().toUpperCase();
-      return t('onlineChallengeShareText', 'Je te lance un défi sur Tiddas. Clique sur le lien et la partie démarre automatiquement : {link}')
-        .replace('{code}', c)
-        .replace('{link}', _inviteLink(c));
-    };
-    const _openShareUrl = (url) => {
-      try { window.open(url, '_blank', 'noopener,noreferrer'); } catch(_) {}
+      const name = (document.getElementById('online-your-name')?.value||'').trim() || '';
+      const base = `${window.location.origin}${window.location.pathname}`;
+      return `${base}?room=${encodeURIComponent(c)}&join=1${name ? '&challenger='+encodeURIComponent(name) : ''}`;
     };
 
-    const _updateInvitePanel = () => {
-      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
-      if (invCodeVal) invCodeVal.textContent = c || '—';
-      if (invLinkVal) {
-        const link = _inviteLink(c);
-        invLinkVal.textContent = link.replace(/^https?:\/\//, '').slice(0,28) + '…';
-        invLinkVal.title = link;
+    const _copyToClipboard = async (text, btn) => {
+      if (!text) return;
+      try { await navigator.clipboard.writeText(text); }
+      catch(_) {
+        try { const i=document.createElement('input'); i.value=text; document.body.appendChild(i); i.select(); document.execCommand('copy'); document.body.removeChild(i); } catch(__) {}
       }
-      if (invShareRow) {
-        const canShare = !!(navigator && typeof navigator.share === 'function');
-        invShareRow.style.display = canShare ? '' : 'none';
-      }
+      if (btn) { const o=btn.textContent; btn.textContent='✅'; setTimeout(()=>{ btn.textContent=o; }, 1800); }
+      if (typeof showToast === 'function') showToast(t('onlineCopied','Copié ✅'));
     };
 
-    const _makeCopyBtn = (btn, getTextFn, successKey) => {
-      if (!btn) return;
-      btn.onclick = async () => {
-        const text = getTextFn();
-        if (!text) return;
-        try {
-          await navigator.clipboard.writeText(text);
-          const orig = btn.textContent;
-          btn.textContent = '✅';
-          btn.classList.add('copied');
-          setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
-          if (typeof showToast === 'function') showToast(t(successKey, 'Copié ✅'));
-        } catch(e) {
-          // Fallback: select an input
-          try {
-            const tmp = document.createElement('input');
-            tmp.value = text; tmp.style.position='fixed'; tmp.style.opacity='0';
-            document.body.appendChild(tmp); tmp.select(); document.execCommand('copy');
-            document.body.removeChild(tmp);
-            btn.textContent = '✅'; btn.classList.add('copied');
-            setTimeout(() => { btn.textContent = 'Copier'; btn.classList.remove('copied'); }, 1500);
-          } catch(_) {}
-        }
-      };
-    };
-
-    _makeCopyBtn(invCopyCode,
-      () => (online.room || onlineEls.roomCode?.textContent || '').trim(),
-      'onlineCodeCopied');
-    _makeCopyBtn(invCopyLink,
-      () => _inviteLink((online.room || onlineEls.roomCode?.textContent || '').trim()),
-      'onlineLinkCopied');
-
-    if (invShareBtn) {
-      invShareBtn.onclick = async () => {
+    const shareBtn = document.getElementById('chal-share-smart');
+    if (shareBtn) {
+      shareBtn.onclick = async () => {
         const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
         if (!c) return;
-        const link = _inviteLink(c);
-        try {
-          await navigator.share({ title: t('onlineChallengeShareTitle', document.title || 'Tiddas'), text: _inviteText(c), url: link });
-        } catch(_) {}
-      };
-    }
-    if (invWaBtn) invWaBtn.onclick = () => {
-      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
-      if (!c) return;
-      _openShareUrl(`https://wa.me/?text=${encodeURIComponent(_inviteText(c))}`);
-    };
-    if (invTgBtn) invTgBtn.onclick = () => {
-      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
-      if (!c) return;
-      _openShareUrl(`https://t.me/share/url?url=${encodeURIComponent(_inviteLink(c))}&text=${encodeURIComponent(t('onlineChallengeShareIntro', 'Défi Tiddas : clique et rejoins-moi immédiatement.'))}`);
-    };
-    if (invFbBtn) invFbBtn.onclick = () => {
-      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
-      if (!c) return;
-      _openShareUrl(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(_inviteLink(c))}`);
-    };
-    if (invMsBtn) invMsBtn.onclick = () => {
-      const c = (online.room || onlineEls.roomCode?.textContent || '').trim();
-      if (!c) return;
-      _openShareUrl(`https://www.facebook.com/dialog/send?link=${encodeURIComponent(_inviteLink(c))}&app_id=291494419107518&redirect_uri=${encodeURIComponent(_inviteLink(c))}`);
-    };
-
-    if (inviteToggle && invitePanel) {
-      inviteToggle.onclick = () => {
-        const isOpen = invitePanel.classList.contains('open');
-        if (!isOpen) _updateInvitePanel();
-        invitePanel.classList.toggle('open');
-        inviteToggle.setAttribute('aria-expanded', String(!isOpen));
+        const name = (document.getElementById('online-your-name')?.value||'').trim() || 'Un joueur';
+        const link = _challengeLink(c);
+        const text = `⚔️ ${name} icqarrew-ik ɣef Tiddas !`;
+        if (typeof navigator.share === 'function') {
+          try { await navigator.share({ title: 'Tiddas – Défi ⚔️', text, url: link }); return; } catch(_) {}
+        }
+        _copyToClipboard(link, shareBtn);
       };
     }
 
-    // Keep invite panel values fresh when room code is set (MutationObserver)
-    if (onlineEls.roomCode) {
-      const obs = new MutationObserver(() => { _updateInvitePanel(); });
-      obs.observe(onlineEls.roomCode, { childList: true, characterData: true, subtree: true });
+    // ── Auto-start countdown (when 2nd player joins) ──────────────────────
+    let _autostartTimer = null;
+    let _autostartCancelled = false;
+
+    function _startAutoCountdown() {
+      if (_autostartTimer || _autostartCancelled) return;
+      const banner    = document.getElementById('online-autostart-banner');
+      const countEl   = document.getElementById('autostart-count');
+      const cancelBtn = document.getElementById('autostart-cancel-btn');
+      if (!banner || !countEl) return;
+      banner.classList.add('visible');
+      let count = 3;
+      countEl.textContent = count;
+      // Trigger count-pop animation on each tick
+      const _tickCount = () => {
+        countEl.style.animation = 'none';
+        void countEl.offsetWidth; // reflow
+        countEl.style.animation = 'count-pop 0.9s cubic-bezier(0.34,1.56,0.64,1)';
+      };
+      _tickCount();
+      if (cancelBtn) {
+        cancelBtn.onclick = () => {
+          _autostartCancelled = true;
+          clearInterval(_autostartTimer); _autostartTimer = null;
+          banner.classList.remove('visible');
+          try { if (navigator.vibrate) navigator.vibrate(50); } catch(_) {}
+        };
+      }
+      _autostartTimer = setInterval(() => {
+        count--;
+        if (count <= 0) {
+          clearInterval(_autostartTimer); _autostartTimer = null;
+          banner.classList.remove('visible');
+          if (!_autostartCancelled) {
+            try { onlineStartMatch_Back4App(); } catch(_) {}
+          }
+          return;
+        }
+        countEl.textContent = count;
+        _tickCount();
+      }, 1000);
+    }
+
+    function _cancelAutoCountdown() {
+      if (_autostartTimer) { clearInterval(_autostartTimer); _autostartTimer = null; }
+      const banner = document.getElementById('online-autostart-banner');
+      if (banner) banner.classList.remove('visible');
+    }
+
+    // ── Polling : détecter quand le défi est accepté (joueur 2 rejoint) ──
+    let _challengeNotifShown = false;
+    let _prevP2Name = null;
+
+    window._checkChallengeAccepted = function(match) {
+      if (!online.isHost) return;
+      const p2Name = match && match.get ? match.get('p2Name') : null;
+      if (p2Name && p2Name !== _prevP2Name) {
+        _prevP2Name = p2Name;
+        if (!_challengeNotifShown) {
+          _challengeNotifShown = true;
+          _showChallengeAcceptedNotification(p2Name);
+        }
+        // Trigger browser notification if permission granted
+        _triggerBrowserNotification(p2Name);
+        // Start auto countdown (only host, only once)
+        if (!_autostartTimer && !_autostartCancelled) {
+          _startAutoCountdown();
+        }
+      }
+    };
+
+    // Browser Notification API (requires permission)
+    function _triggerBrowserNotification(playerName) {
+      try {
+        if (!('Notification' in window)) return;
+        const _send = () => {
+          const n = new Notification('⚔️ Défi accepté !', {
+            body: `${playerName} icqarrew-ik — La partie commence !`,
+            icon: document.querySelector('link[rel="icon"]')?.href || '',
+            tag: 'tiddas-challenge'
+          });
+          setTimeout(() => { try { n.close(); } catch(_) {} }, 6000);
+        };
+        if (Notification.permission === 'granted') {
+          _send();
+        } else if (Notification.permission !== 'denied') {
+          Notification.requestPermission().then(p => { if (p === 'granted') _send(); });
+        }
+      } catch(_) {}
     }
 
     // ── Lancer la partie ─────────────────────────────────────
-    if (onlineEls.btnStart) onlineEls.btnStart.onclick = () => { onlineStartMatch_Back4App(); };
+    if (onlineEls.btnStart) onlineEls.btnStart.onclick = () => { _cancelAutoCountdown(); onlineStartMatch_Back4App(); };
 
     // ── Persist local nickname ────────────────────────────────
     try {
@@ -24009,6 +22591,7 @@ if (onlineBtn) {
           const code = (onlineEls.inputCode?.value || '').trim().toUpperCase();
           if (code.length >= 4 && n && !online.connected) {
             // Don't auto-connect on every keystroke — only if coming from URL auto-join
+
           }
         });
       }
@@ -24017,10 +22600,6 @@ if (onlineBtn) {
 }
 
 function onlineConnectToRoom(code, creating) {
-  if (!creating) {
-    const joinName = _ensureOnlineJoinName();
-    if (!joinName) return;
-  }
   // Back4App (no LiveQuery) implementation — defined above
   return onlineConnectToRoom_Back4App(code, creating);
 }
@@ -25154,13 +23733,17 @@ if (e.key === 'Escape' && aboutModal && aboutModal.classList.contains('active'))
     const playerWhoGetsPoint = cfg().isInverseWin ? (3 - state.turnForCapture) : state.turnForCapture;
     const epoch = bumpRulesAsyncEpoch();
 
+    // Suppress online sends during the animation window (900ms + 500ms)
+    // so intermediate states (piece still on board, captureMode=true) are never broadcast
+    if (gameMode === 'online') online.suppressSend = true;
+
     const messageKey = cfg().isInverseWin ? 'ephemeralCaptureBessif' : 'ephemeralCaptureNormal';
     showEphemeralBubbleMessage(messageKey, 'fas fa-mouse-pointer', capturerTurn);
     const targetCell = boardDiv.children[idxToCapture];
     if (targetCell) targetCell.classList.add('capture-pending');
 
     setTimeout(() => {
-      if (epoch !== currentRulesAsyncEpoch()) return;
+      if (epoch !== currentRulesAsyncEpoch()) { if (gameMode === 'online') online.suppressSend = false; return; }
       if (targetCell) targetCell.classList.remove('capture-pending');
       playSound('capture'); vibrateGame('capture');
       addMoveLog({
@@ -25171,7 +23754,7 @@ if (e.key === 'Escape' && aboutModal && aboutModal.classList.contains('active'))
       animateStoneCapture(idxToCapture);
 
       setTimeout(() => {
-        if (epoch !== currentRulesAsyncEpoch()) return;
+        if (epoch !== currentRulesAsyncEpoch()) { if (gameMode === 'online') online.suppressSend = false; return; }
         state.board[idxToCapture] = null;
         state.captured[playerWhoGetsPoint]++;
         state.pendingCaptures = Math.max(0, (state.pendingCaptures || 0) - 1);
@@ -25182,6 +23765,8 @@ if (e.key === 'Escape' && aboutModal && aboutModal.classList.contains('active'))
         repairState('handleCapture:after-remove');
 
         if (state.pendingCaptures > 0 && state.captureMode) {
+          // More captures pending: restore suppress and let next capture handle send
+          if (gameMode === 'online') online.suppressSend = false;
           renderAll();
           saveGame();
           triggerNextAction();
@@ -25191,6 +23776,8 @@ if (e.key === 'Escape' && aboutModal && aboutModal.classList.contains('active'))
           state.pendingCaptures = 0;
           state.highlightedMills = [];
           repairState('handleCapture:close');
+          // Lift suppress BEFORE endTurn so the final state send goes through
+          if (gameMode === 'online') online.suppressSend = false;
           endTurn();
         }
       }, 500);
