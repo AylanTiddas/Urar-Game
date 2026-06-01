@@ -16048,6 +16048,25 @@ const ONLINE_ENABLED = true;
 // ── Back4App (Online Multiplayer) ─────────────────────────
 // Obtenir ces clés dans Back4App → App Settings → Security & Keys
 // NE PAS mettre la Master Key ici.
+// ─── SÉCURITÉ BACK4APP (Point 17) ──────────────────────────────────────────────
+// Ces clés sont visibles dans le source HTML public. Le JS Key côté client ne peut
+// pas être vraiment secret. Protège l'accès en configurant les Class-Level Permissions
+// (CLP) sur la classe GameMatch dans le dashboard Back4App :
+//
+//   Opération        | Public   | Authenticated | Recommandation
+//   -----------------+----------+---------------+---------------------------
+//   Get              | ✅ ON    | ✅ ON         | Les clients lisent leur salon
+//   Find             | ✅ ON    | ✅ ON         | Requis pour _fetchMatchByCode
+//   Create           | ✅ ON    | ✅ ON         | Création de salon
+//   Update           | ✅ ON    | ✅ ON         | Envoi des coups
+//   Delete           | ❌ OFF   | ❌ OFF        | Jamais effacé par les clients
+//   Add Fields       | ❌ OFF   | ❌ OFF        | Schéma figé
+//
+// Pour un déploiement durci, active "Pointer Permissions" sur les champs p1Id/p2Id
+// de façon que seul le joueur propriétaire puisse écrire dans son salon.
+// Alternative : un proxy serveur minimal (Netlify Function / Vercel Edge) qui vérifie
+// l'identité avant de transmettre à Back4App — élimine l'exposition des clés côté client.
+// ────────────────────────────────────────────────────────────────────────────────
 const BACK4APP_APP_ID     = "0OdwKRYlpRsoBHLb13xtM9Ed48nKZFFiuQr5XTkj"; // ← remplacer
 const BACK4APP_JS_KEY     = "cZnZcMDkhkCSJHKNlgUVebh9TzKaOGDngEiaPmeA"; // ← remplacer (JS Key)
 const BACK4APP_SERVER_URL = "https://parseapi.back4app.com";              // URL API par défaut
@@ -16394,7 +16413,12 @@ function _randCode(len=ONLINE_ROOM_CODE_LENGTH) {
 }
 
 function onlineDisconnect() {
-  if (online.pollTimer) { clearInterval(online.pollTimer); online.pollTimer = 0; }
+  if (online.pollTimer) {
+    // Compatibilité avec TiddasOnlineProd V2 qui stocke un setTimeout dans pollTimer
+    try { clearInterval(online.pollTimer); } catch(_) {}
+    try { clearTimeout(online.pollTimer); } catch(_) {}
+    online.pollTimer = 0;
+  }
   try {
     if (typeof window._cancelOnlineAutostartCountdown === 'function') {
       window._cancelOnlineAutostartCountdown(true);
@@ -16705,7 +16729,9 @@ function _startPolling() {
         // Check for player inactivity (optional field p1Active/p2Active)
         var p1Active = match.get('p1Active') !== false;
         var p2Active = match.get('p2Active') !== false;
-        if (window.gameMode === 'spectator') {
+        // FIX P10: aligner la condition spectateur (role===0 OU gameMode==='spectator')
+        var _isLocalSpectator = (window.gameMode === 'spectator' || (window.online && window.online.role === 0));
+        if (_isLocalSpectator) {
           if (!p1Active && window.TiddasSpectator) window.TiddasSpectator.showTakeoverSlot && window.TiddasSpectator.showTakeoverSlot(1);
           else if (!p2Active && window.TiddasSpectator) window.TiddasSpectator.showTakeoverSlot && window.TiddasSpectator.showTakeoverSlot(2);
           // Mettre à jour la position du spectateur dans la file d'attente
@@ -16804,6 +16830,9 @@ function _startPolling() {
       _lqQuery.subscribe().then(function(sub) {
         _liveQuerySub = sub;
         _liveQueryStarted = true;
+        // FIX P2: annuler le poll HTTP démarré pendant la résolution async du subscribe()
+        // pour éviter la double-application d'état (LQ push + tick HTTP sur le même rev).
+        if (online.pollTimer) { clearInterval(online.pollTimer); online.pollTimer = 0; }
 
         sub.on('update', function(match) {
           // Même logique que tick() mais déclenchée sur push serveur
@@ -16875,7 +16904,14 @@ function _startPolling() {
     }
   } catch(_) { /* Parse.LiveQuery absent → fallback */ }
 
-  // Fallback polling HTTP si LiveQuery non disponible ou non encore confirmé
+  // Fallback polling HTTP si LiveQuery non disponible ou non encore confirmé.
+  // NOTE FIX P2: _liveQueryStarted est positionné dans un callback async (.then()),
+  // donc ce test synchrone vaut toujours false au moment de son exécution lorsque
+  // Parse.LiveQuery est disponible → les deux chemins (LQ + poll) démarreraient ensemble.
+  // Solution : démarrer le polling HTTP inconditionnellement ici, mais l'arrêter
+  // depuis l'intérieur du callback .then() dès que LiveQuery est confirmé actif.
+  // Le tick() de polling est inoffensif pendant les quelques ms avant la confirmation :
+  // il voit online.fetching=false, effectue UNE requête HTTP, puis se fait annuler.
   if (!_liveQueryStarted) {
     online.pollTimer = setInterval(tick, _pollCurrentInterval);
   }
@@ -17031,7 +17067,10 @@ async function onlineConnectToRoom_Back4App(code, creating) {
       }
     }
 
-    online.lastSeenRev = -1;
+    // FIX P9: Only reset lastSeenRev to -1 if we did NOT already sync it
+    // from a payload above — otherwise the first poll re-applies our own
+    // state and generates a spurious onlineApplyState() echo.
+    if (online.lastSeenRev < 0) online.lastSeenRev = -1;
     clearTimeout(_connTimeout);
     if (_connTimeoutFired) return; // timeout already handled
     _startPolling();
@@ -17195,10 +17234,14 @@ async function onlineStartMatch_Back4App() {
     }
 
     // Persist room status + initial payload
+    // Appel direct à _doSendState pour court-circuiter suppressSend (on est l'émetteur, pas le récepteur)
+    online.suppressSend = false;
     onlineSendState('start');
     _setOnlineStatus(t('onlineStartOK', "Partie lancée ✅"));
+    return true; // ← CRITIQUE : permet aux wrappers de détecter le succès
   } catch (e) {
-_setOnlineStatus(t('onlineStartErrorPrefix', 'Erreur lancement : {msg}').replace('{msg}', (e?.message || String(e))));
+    _setOnlineStatus(t('onlineStartErrorPrefix', 'Erreur lancement : {msg}').replace('{msg}', (e?.message || String(e))));
+    return false;
   }
 }
 
@@ -25924,7 +25967,12 @@ if (onlineBtn) {
           clearInterval(_autostartTimer); _autostartTimer = null;
           banner.classList.remove('visible');
           if (!_autostartCancelled) {
-            try { onlineStartMatch_Back4App(); } catch(_) {}
+            try {
+              // Appel via window. pour traverser toutes les couches de hardening/locks
+              if (typeof window.onlineStartMatch_Back4App === 'function') {
+                window.onlineStartMatch_Back4App();
+              }
+            } catch(_) {}
           }
           return;
         }
@@ -29668,6 +29716,9 @@ var SpectatorEnhanced = (function() {
   function showTakeoverSlot(slot) {
     var btn = document.getElementById('ol-takeover-btn');
     if (!btn) return;
+    // FIX P11: Ne jamais proposer la prise en main de notre propre slot.
+    // Si online.role === slot, c'est notre siège — le bouton ne doit pas apparaître.
+    if (slot && window.online && window.online.role === slot) return;
     if (slot) {
       _disconnectedSlot = slot;
       // N'afficher le bouton que si ce spectateur est le premier de la file
@@ -32511,7 +32562,12 @@ window.TiddasSpectator       = SpectatorEnhanced;
         var m = await _getMatch(matchId);
         var queue = m.get('spectatorQueue') || [];
         if (queue.indexOf(myId) === -1) {
-          queue.push(myId); m.set('spectatorQueue', queue); await m.save();
+          // FIX P12: écrire les deux champs pour unifier specQueue et spectatorQueue
+          queue.push(myId);
+          m.set('spectatorQueue', queue);
+          m.set('specQueue', (m.get('specQueue') || []).concat([{ id: myId, name: myId, ts: Date.now() }]));
+          m.increment('rev', 1);
+          await m.save();
           window._spectatorEnqueueDone = true;
         } else {
           window._spectatorEnqueueDone = true; // déjà dans la queue
@@ -33256,752 +33312,67 @@ window.TiddasSpectator       = SpectatorEnhanced;
 </script>
 
 <script nonce="tiddas">
-(function(){
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIDDAS ONLINE — MODULE UNIFIÉ v1.0
+   Remplace : Hardening V1, V1B, LifecyclePatch V2, OnlineProd V2
+   Corrige  : phase STARTING stuck, return undefined, suppressSend, locks empilés,
+              pollBusy syncNow, applyLobby guard trop strict
+   ═══════════════════════════════════════════════════════════════════════════ */
+(function () {
   'use strict';
-  if (window.__TIDDAS_ONLINE_HARDENING_V1__) return;
-  window.__TIDDAS_ONLINE_HARDENING_V1__ = true;
+  if (window.__TIDDAS_ONLINE_UNIFIED_V1__) return;
+  window.__TIDDAS_ONLINE_UNIFIED_V1__ = true;
 
-  function dbg(){ try { if (window.DEBUG) console.debug('[Tiddas/Hardening]', ...arguments); } catch(_) {} }
-  function now(){ return Date.now(); }
-  function toJSON(v){ try { return JSON.stringify(v); } catch(_) { return String(v); } }
-
-  const hard = {
-    sessionId: 0,
-    connectBusy: false,
-    createBusy: false,
-    joinBusy: false,
-    startBusy: false,
-    rematchBusy: false,
-    disconnectBusy: false,
-    lastAppliedSig: '',
-    lastAppliedRev: -1,
-    lastAppliedGameId: -1,
-    outgoingBusy: false,
-    outgoingQueued: null,
-    reconnectTimer: 0,
-    installTs: now(),
-    lastNetOkTs: now()
-  };
-  window.__tiddasOnlineHardening = hard;
-
-  function roomOfPayload(payload){
-    try { return String(payload?.room || window.online?.room || ''); } catch(_) { return ''; }
-  }
-  function revOfPayload(payload){
-    try { return Number(payload?.meta?.rev ?? payload?.rev ?? window.online?.lastSeenRev ?? -1); } catch(_) { return -1; }
-  }
-  function gameIdOfPayload(payload){
+  /* ── Helpers ── */
+  function log(lvl, msg, data) {
     try {
-      const meta = payload && payload.meta ? payload.meta : null;
-      const direct = meta && Number.isFinite(Number(meta.gameId)) ? Number(meta.gameId) : NaN;
-      if (Number.isFinite(direct)) return direct;
-      const st = payload && payload.state ? payload.state : null;
-      const nested = st && Number.isFinite(Number(st.gameId)) ? Number(st.gameId) : NaN;
-      if (Number.isFinite(nested)) return nested;
-      const onlineGameId = Number(window.online?.gameId);
-      return Number.isFinite(onlineGameId) ? onlineGameId : 0;
-    } catch(_) { return 0; }
-  }
-  function stateSig(payload){
-    const state = payload && payload.state ? payload.state : null;
-    const meta = payload && payload.meta ? payload.meta : null;
-    return [
-      roomOfPayload(payload),
-      gameIdOfPayload(payload),
-      revOfPayload(payload),
-      meta && meta.at ? Number(meta.at) : 0,
-      toJSON(state)
-    ].join('||');
-  }
-  function sameRoom(payload){
-    const payloadRoom = roomOfPayload(payload);
-    const currentRoom = String(window.online?.room || '');
-    return !payloadRoom || !currentRoom || payloadRoom === currentRoom;
-  }
-  function newerOrEqualGame(payload){
-    const gid = gameIdOfPayload(payload);
-    return gid >= Number(hard.lastAppliedGameId || -1);
-  }
-  function markApplied(payload){
-    hard.lastAppliedSig = stateSig(payload);
-    hard.lastAppliedRev = Math.max(hard.lastAppliedRev, revOfPayload(payload));
-    hard.lastAppliedGameId = Math.max(hard.lastAppliedGameId, gameIdOfPayload(payload));
-    hard.lastNetOkTs = now();
-  }
-  function resetSession(reason){
-    hard.sessionId += 1;
-    hard.lastAppliedSig = '';
-    hard.lastAppliedRev = -1;
-    hard.lastAppliedGameId = -1;
-    hard.outgoingQueued = null;
-    hard.outgoingBusy = false;
-    dbg('resetSession', reason, hard.sessionId);
-  }
-
-  const originalDisconnect = window.onlineDisconnect;
-  if (typeof originalDisconnect === 'function') {
-    window.onlineDisconnect = function(){
-      if (hard.disconnectBusy) return;
-      hard.disconnectBusy = true;
-      resetSession('disconnect');
-      try { return originalDisconnect.apply(this, arguments); }
-      finally { hard.disconnectBusy = false; }
-    };
-  }
-
-  const originalApplyState = window.onlineApplyState;
-  if (typeof originalApplyState === 'function') {
-    window.onlineApplyState = function(payload){
-      try {
-        if (!payload || !payload.state) return;
-        if (!sameRoom(payload)) {
-          dbg('drop payload from another room', roomOfPayload(payload), window.online?.room);
-          return;
-        }
-        if (!newerOrEqualGame(payload)) {
-          dbg('drop stale payload (older gameId)', gameIdOfPayload(payload), hard.lastAppliedGameId);
-          return;
-        }
-        const sig = stateSig(payload);
-        if (sig === hard.lastAppliedSig) {
-          dbg('skip duplicate payload');
-          return;
-        }
-        const payloadRev = revOfPayload(payload);
-        const payloadGameId = gameIdOfPayload(payload);
-        const currentLastSeen = Number(window.online?.lastSeenRev ?? -1);
-        const sameGame = payloadGameId === hard.lastAppliedGameId;
-        if (sameGame && payloadRev >= 0 && hard.lastAppliedRev >= 0 && payloadRev < hard.lastAppliedRev) {
-          dbg('drop old payload by rev', payloadRev, hard.lastAppliedRev);
-          return;
-        }
-        if (sameGame && payloadRev >= 0 && currentLastSeen >= 0 && payloadRev < currentLastSeen) {
-          dbg('drop old payload by online.lastSeenRev', payloadRev, currentLastSeen);
-          return;
-        }
-        const result = originalApplyState.apply(this, arguments);
-        markApplied(payload);
-        return result;
-      } catch (err) {
-        console.warn('[Tiddas/Hardening] onlineApplyState wrapper error', err);
-        return originalApplyState.apply(this, arguments);
+      if (window.DEBUG || lvl === 'error' || lvl === 'warn') {
+        const fn = console[lvl] || console.log;
+        fn('[Tiddas/Online]', msg, data || '');
       }
-    };
+    } catch (_) {}
+  }
+  function now() { return Date.now(); }
+  function safeT(k, fb) {
+    try { return (window.t || (function(a,b){return b;}))(k, fb); } catch(_) { return fb; }
+  }
+  function safeShowScreen(id) {
+    try { (window.showScreen || function(){})(id); } catch(_) {}
+  }
+  function safeSetStatus(msg) {
+    try { if (typeof window._setOnlineStatus === 'function') window._setOnlineStatus(msg); } catch(_) {}
+    try { const el = document.getElementById('online-status-text'); if (el) el.textContent = msg || '—'; } catch(_) {}
+  }
+  function onlineState() { window.online = window.online || {}; return window.online; }
+  function getRoom()    { return String(onlineState().room    || ''); }
+  function getMatchId() { return String(onlineState().matchId || ''); }
+  function getRole()    { return Number(onlineState().role    ||  0); }
+  function isPlayer()   { return getRole() === 1 || getRole() === 2; }
+  function isHost()     { return !!onlineState().isHost && getRole() === 1; }
+  function isConnected(){ return !!onlineState().connected && !!getMatchId(); }
+  function isSpectator(){
+    if (!isConnected()) return false;
+    return getRole() === 0 || window.gameMode === 'spectator';
+  }
+  function parseReady() {
+    return !!(window.Parse && window.BACK4APP_CLASS && typeof window.Parse.Query === 'function');
+  }
+  async function ensureParseReady() {
+    if (typeof window._ensureParseReadyAsync === 'function') return !!(await window._ensureParseReadyAsync());
+    return parseReady();
   }
 
-  const originalConnect = window.onlineConnectToRoom_Back4App;
-  if (typeof originalConnect === 'function') {
-    window.onlineConnectToRoom_Back4App = async function(code, creating){
-      if (creating && hard.createBusy) return;
-      if (!creating && hard.joinBusy) return;
-      if (creating) hard.createBusy = true; else hard.joinBusy = true;
-      const mySession = ++hard.sessionId;
-      hard.lastAppliedSig = '';
-      hard.lastAppliedRev = -1;
-      hard.lastAppliedGameId = -1;
-      try {
-        const result = await originalConnect.apply(this, arguments);
-        if (mySession !== hard.sessionId) return result;
-        try {
-          if (window.online?.connected && window.online?.matchId && window.Parse && window.BACK4APP_CLASS) {
-            const q = new window.Parse.Query(window.BACK4APP_CLASS);
-            const match = await q.get(window.online.matchId);
-            const rev = Number(match.get('rev') || 0);
-            const payload = match.get('payload') || null;
-            window.online.lastSeenRev = rev;
-            hard.lastAppliedRev = rev;
-            hard.lastAppliedGameId = Number(match.get('gameId') || gameIdOfPayload(payload) || 0);
-            if (payload && payload.state) markApplied(payload);
-            dbg('post-connect sync ok', window.online.room, rev, hard.lastAppliedGameId);
-          }
-        } catch (syncErr) {
-          console.warn('[Tiddas/Hardening] post-connect sync failed', syncErr);
-        }
-        return result;
-      } finally {
-        hard.createBusy = false;
-        hard.joinBusy = false;
-      }
-    };
-  }
-
-  const originalDoSendState = window._doSendState;
-  if (typeof originalDoSendState === 'function') {
-    window._doSendState = function(reason){
-      const normalizedReason = String(reason || 'sync');
-      hard.outgoingQueued = normalizedReason;
-      if (hard.outgoingBusy) return;
-      hard.outgoingBusy = true;
-      const flush = () => {
-        const next = hard.outgoingQueued;
-        hard.outgoingQueued = null;
-        if (!next) {
-          hard.outgoingBusy = false;
-          return;
-        }
-        Promise.resolve().then(() => originalDoSendState.call(this, next)).catch((err) => {
-          console.warn('[Tiddas/Hardening] send failed', err);
-        }).finally(() => {
-          setTimeout(flush, 80);
-        });
-      };
-      flush();
-    };
-  }
-
-  function wrapBusyButton(fnName, key){
-    const original = window[fnName];
-    if (typeof original !== 'function') return;
-    window[fnName] = async function(){
-      if (hard[key]) return;
-      hard[key] = true;
-      try { return await original.apply(this, arguments); }
-      finally { setTimeout(() => { hard[key] = false; }, 250); }
-    };
-  }
-  wrapBusyButton('onlineStartGame', 'startBusy');
-  wrapBusyButton('onlineToggleRematchReady', 'rematchBusy');
-
-  function setButtonState(id, busy, text){
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (busy) {
-      if (!el.dataset.originalHtml) el.dataset.originalHtml = el.innerHTML;
-      el.disabled = true;
-      if (text) el.innerHTML = text;
-      el.setAttribute('aria-busy', 'true');
-      el.classList.add('is-busy');
-    } else {
-      el.disabled = false;
-      if (el.dataset.originalHtml) el.innerHTML = el.dataset.originalHtml;
-      el.removeAttribute('aria-busy');
-      el.classList.remove('is-busy');
-    }
-  }
-
-  function refreshBusyUi(){
-    setButtonState('online-create-room', hard.createBusy, '⏳ Création…');
-    setButtonState('online-connect', hard.joinBusy, '⏳');
-    setButtonState('online-start', hard.startBusy, '⏳ Démarrage…');
-    setButtonState('online-rematch-ready-btn', hard.rematchBusy, '⏳');
-  }
-  setInterval(refreshBusyUi, 120);
-
-  function scheduleReconnect(){
-    if (hard.reconnectTimer) return;
-    hard.reconnectTimer = window.setTimeout(async () => {
-      hard.reconnectTimer = 0;
-      try {
-        const online = window.online || {};
-        if (!online.connected || !online.room) return;
-        if (document.visibilityState === 'hidden') return;
-        if (typeof window.onlineReconnect !== 'function' && typeof window.onlineConnectToRoom_Back4App !== 'function') return;
-        const idleMs = now() - Math.max(hard.lastNetOkTs, window._lastPeerRevTs || 0, hard.installTs);
-        if (idleMs < 45000) return;
-        if (typeof window._setOnlineStatus === 'function') {
-          window._setOnlineStatus('Reconnexion préventive…');
-        }
-        if (typeof window.onlineReconnect === 'function') {
-          await window.onlineReconnect();
-        } else if (window.online.room) {
-          await window.onlineConnectToRoom_Back4App(window.online.room, false);
-        }
-      } catch (err) {
-        console.warn('[Tiddas/Hardening] reconnect attempt failed', err);
-      }
-    }, 1500);
-  }
-
-  window.addEventListener('online', scheduleReconnect);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') scheduleReconnect();
-  });
-
-  const style = document.createElement('style');
-  style.id = 'tiddas-online-hardening-style';
-  style.textContent = `
-    .is-busy{opacity:.78;pointer-events:none;filter:saturate(.85)}
-    button[aria-busy="true"]{cursor:progress!important}
-  `;
-  document.head.appendChild(style);
-
-  dbg('online hardening installed');
-})();
-</script>
-
-
-<script nonce="tiddas">
-(function(){
-  'use strict';
-  if (window.__TIDDAS_ONLINE_HARDENING_V1B__) return;
-  window.__TIDDAS_ONLINE_HARDENING_V1B__ = true;
-  const hard = window.__tiddasOnlineHardening || {};
-  function wrapBusy(fnName, key){
-    const original = window[fnName];
-    if (typeof original !== 'function') return;
-    window[fnName] = async function(){
-      if (hard[key]) return;
-      hard[key] = true;
-      try { return await original.apply(this, arguments); }
-      finally { setTimeout(() => { hard[key] = false; }, 250); }
-    };
-  }
-  wrapBusy('onlineStartMatch_Back4App', 'startBusy');
-  wrapBusy('onlineSetRematchReady', 'rematchBusy');
-})();
-</script>
-
-
-<script nonce="tiddas">
-(function(){
-  if (window.__tiddasOnlineLifecyclePatchV2) return;
-  window.__tiddasOnlineLifecyclePatchV2 = true;
-
-  function _olHashBoard(board) {
-    try {
-      if (!Array.isArray(board)) return 'no-board';
-      let out = '';
-      for (let i = 0; i < board.length; i++) out += String(board[i] == null ? '.' : board[i]);
-      return out;
-    } catch(_) { return 'hash-error'; }
-  }
-  function _olPayloadKey(msg) {
-    try {
-      const meta = msg && msg.meta ? msg.meta : {};
-      const s = msg && msg.state ? msg.state : {};
-      return [
-        String(msg && msg.room || window.online && window.online.room || ''),
-        String(meta.gameId != null ? meta.gameId : ''),
-        String(meta.at != null ? meta.at : ''),
-        String(meta.turn != null ? meta.turn : s.turn != null ? s.turn : ''),
-        String(s.phase || ''),
-        String(s.winner || ''),
-        _olHashBoard(s.board)
-      ].join('|');
-    } catch(_) { return 'payload-key-error'; }
-  }
-  function _olSnapshot() {
-    const o = window.online || {};
-    return { seq: Number(o._sessionSeq || 0), matchId: o.matchId || null, room: o.room || null };
-  }
-  function _olIsCurrent(snapshot) {
-    const o = window.online || {};
-    return !!snapshot && Number(o._sessionSeq || 0) === Number(snapshot.seq || 0) && (o.matchId || null) === (snapshot.matchId || null) && (o.room || null) === (snapshot.room || null);
-  }
-  function _olEnsureState() {
-    if (!window.online) window.online = {};
-    const o = window.online;
-    if (!o._actionLocks) o._actionLocks = Object.create(null);
-    if (typeof o._sessionSeq !== 'number') o._sessionSeq = 0;
-    if (typeof o._lastAppliedPayloadKey !== 'string') o._lastAppliedPayloadKey = '';
-    if (typeof o._lastSentStateKey !== 'string') o._lastSentStateKey = '';
-    if (typeof o._sessionStartedAt !== 'number') o._sessionStartedAt = Date.now();
-    return o;
-  }
-  function _olSetButtonsBusy(map, busy) {
-    try {
-      Object.keys(map || {}).forEach(function(key) {
-        const btn = map[key];
-        if (!btn) return;
-        if (busy) {
-          btn.dataset.olPrevDisabled = btn.disabled ? '1' : '0';
-          btn.disabled = true;
-          btn.setAttribute('aria-busy', 'true');
-          btn.classList.add('is-busy');
-        } else {
-          const prev = btn.dataset.olPrevDisabled === '1';
-          btn.disabled = prev;
-          btn.removeAttribute('aria-busy');
-          btn.classList.remove('is-busy');
-          delete btn.dataset.olPrevDisabled;
-        }
-      });
-    } catch(_) {}
-  }
-  async function _olRunLocked(lockName, btns, fn) {
-    const o = _olEnsureState();
-    if (o._actionLocks[lockName]) return false;
-    o._actionLocks[lockName] = true;
-    _olSetButtonsBusy(btns, true);
-    try { return await fn(); }
-    finally {
-      o._actionLocks[lockName] = false;
-      _olSetButtonsBusy(btns, false);
-    }
-  }
-
-  _olEnsureState();
-
-  const __origDisconnect = window.onlineDisconnect;
-  if (typeof __origDisconnect === 'function') {
-    window.onlineDisconnect = function() {
-      const o = _olEnsureState();
-      o._sessionSeq = Number(o._sessionSeq || 0) + 1;
-      o._sessionStartedAt = Date.now();
-      o._lastAppliedPayloadKey = '';
-      o._lastSentStateKey = '';
-      o._pollEpoch = 0;
-      try { if (o._reconnectOnVisibleTimer) { clearTimeout(o._reconnectOnVisibleTimer); o._reconnectOnVisibleTimer = 0; } } catch(_) {}
-      try { if (o._visibilityDebounceTimer) { clearTimeout(o._visibilityDebounceTimer); o._visibilityDebounceTimer = 0; } } catch(_) {}
-      try { if (o._actionLocks) Object.keys(o._actionLocks).forEach(function(k){ o._actionLocks[k] = false; }); } catch(_) {}
-      return __origDisconnect.apply(this, arguments);
-    };
-  }
-
-  const __origApplyLobbyState = window._applyLobbyStateFromMatch;
-  if (typeof __origApplyLobbyState === 'function') {
-    window._applyLobbyStateFromMatch = function(match) {
-      const o = _olEnsureState();
-      if (!o.connected || !o.matchId || !match) return;
-      if (match.id && String(match.id) !== String(o.matchId)) return;
-      return __origApplyLobbyState.apply(this, arguments);
-    };
-  }
-
-  const __origOnlineApplyState = window.onlineApplyState;
-  if (typeof __origOnlineApplyState === 'function') {
-    window.onlineApplyState = function(msg) {
-      const o = _olEnsureState();
-      if (!msg || !msg.state) return;
-      if (!o.connected && window.gameMode !== 'spectator') return;
-      if (msg.room && o.room && String(msg.room) !== String(o.room)) return;
-      const incomingGameId = Number(msg && msg.meta && msg.meta.gameId != null ? msg.meta.gameId : o.gameId || 0);
-      const currentGameId = Number(o.gameId || 0);
-      if (!Number.isNaN(incomingGameId) && incomingGameId < currentGameId) return;
-      const key = _olPayloadKey(msg);
-      if (key && key === o._lastAppliedPayloadKey) return;
-      o._lastAppliedPayloadKey = key;
-      try {
-        if (msg.state) {
-          if (!Array.isArray(msg.state.board)) msg.state.board = [];
-          if (!Array.isArray(msg.state.highlightedMills)) msg.state.highlightedMills = [];
-          if (!Array.isArray(msg.state.lastMove)) msg.state.lastMove = [];
-        }
-      } catch(_) {}
-      return __origOnlineApplyState.apply(this, arguments);
-    };
-  }
-
-  const __origOnlineSendState = window.onlineSendState;
-  if (typeof __origOnlineSendState === 'function') {
-    window.onlineSendState = function(reason) {
-      const o = _olEnsureState();
-      if (!o.connected || !o.matchId || o.suppressSend) return;
-      try {
-        const s = window.state || {};
-        const key = [
-          String(reason || 'sync'),
-          String(o.room || ''),
-          String(o.gameId || 0),
-          String(s.turn != null ? s.turn : ''),
-          String(s.phase || ''),
-          String(s.winner || ''),
-          _olHashBoard(s.board)
-        ].join('|');
-        if (key === o._lastSentStateKey && reason !== 'start' && reason !== 'surrender' && reason !== 'replay') return;
-        o._lastSentStateKey = key;
-      } catch(_) {}
-      return __origOnlineSendState.apply(this, arguments);
-    };
-  }
-
-  const __origConnect = window.onlineConnectToRoom_Back4App;
-  if (typeof __origConnect === 'function') {
-    window.onlineConnectToRoom_Back4App = async function(code, creating) {
-      const btns = {
-        create: window.onlineEls && window.onlineEls.btnCreate,
-        connect: window.onlineEls && window.onlineEls.btnConnect,
-        start: window.onlineEls && window.onlineEls.btnStart
-      };
-      return _olRunLocked('connect', btns, async function() {
-        const o = _olEnsureState();
-        o._sessionSeq = Number(o._sessionSeq || 0) + 1;
-        o._sessionStartedAt = Date.now();
-        o._lastAppliedPayloadKey = '';
-        o._lastSentStateKey = '';
-        return await __origConnect.apply(this, arguments);
-      });
-    };
-  }
-
-  const __origStart = window.onlineStartMatch_Back4App;
-  if (typeof __origStart === 'function') {
-    window.onlineStartMatch_Back4App = async function() {
-      const btns = { start: window.onlineEls && window.onlineEls.btnStart };
-      return _olRunLocked('start', btns, async function() {
-        const snap = _olSnapshot();
-        const res = await __origStart.apply(this, arguments);
-        if (!_olIsCurrent(snap)) return false;
-        return res;
-      });
-    };
-  }
-
-  const __origRematch = window.onlineSetRematchReady;
-  if (typeof __origRematch === 'function') {
-    window.onlineSetRematchReady = async function(isReady) {
-      const btn = document.getElementById('online-rematch-ready-btn');
-      return _olRunLocked('rematch', { rematch: btn }, async function() {
-        const snap = _olSnapshot();
-        const res = await __origRematch.apply(this, arguments);
-        if (!_olIsCurrent(snap)) return false;
-        return res;
-      });
-    };
-  }
-
-  const __origStartPolling = window._startPolling;
-  window._startPolling = function() {
-    const o = _olEnsureState();
-    if (o.pollTimer || !o.connected || !o.matchId) return;
-    o._pollEpoch = Number(o._pollEpoch || 0) + 1;
-    const myEpoch = o._pollEpoch;
-    const mySnapshot = _olSnapshot();
-    _pollNoChangeCount = 0;
-    _pollCurrentInterval = _POLL_FAST_MS;
-    _pollConsecutiveErrors = 0;
-
-    function _isAlive() {
-      return _olIsCurrent(mySnapshot) && (window.online && Number(window.online._pollEpoch || 0) === myEpoch);
-    }
-    function _reschedule(ms) {
-      if (!_isAlive()) return;
-      if (window.online && window.online.pollTimer) clearInterval(window.online.pollTimer);
-      _pollCurrentInterval = ms;
-      window.online.pollTimer = setInterval(tick, ms);
-    }
-
-    const tick = async function() {
-      if (!_isAlive()) return;
-      if (!window.online.connected || !window.online.matchId) return;
-      if (window.online.fetching) return;
-      window.online.fetching = true;
-      const activeMatchId = window.online.matchId;
-      try {
-        const match = await _fetchMatchById(activeMatchId);
-        if (!_isAlive()) return;
-        if (!match || (match.id && String(match.id) !== String(window.online.matchId || ''))) return;
-
-        _lastPeerRevTs = Date.now();
-        _pollConsecutiveErrors = 0;
-
-        try { window._applyLobbyStateFromMatch && window._applyLobbyStateFromMatch(match); } catch(_) {}
-        try { _processMatchChatFromArray(match); } catch (_) {}
-
-        try {
-          var rawChat = match.get('ephemeralChat');
-          if (Array.isArray(rawChat)) {
-            rawChat.forEach(function(msg) {
-              if (msg && msg.type === 'spectator-chat' && window._onlineChatInjectMsg) {
-                window._onlineChatInjectMsg && window._onlineChatInjectMsg(msg);
-              }
-            });
-          }
-        } catch(_) {}
-
-        try {
-          var matchStatus = match.get('status') || 'waiting';
-          var liveDotEl = document.getElementById('ol-live-dot');
-          if (liveDotEl) liveDotEl.style.display = (matchStatus === 'playing') ? 'inline-flex' : 'none';
-
-          var p1Active = match.get('p1Active') !== false;
-          var p2Active = match.get('p2Active') !== false;
-          if (window.gameMode === 'spectator') {
-            if (!p1Active && window.TiddasSpectator) window.TiddasSpectator.showTakeoverSlot && window.TiddasSpectator.showTakeoverSlot(1);
-            else if (!p2Active && window.TiddasSpectator) window.TiddasSpectator.showTakeoverSlot && window.TiddasSpectator.showTakeoverSlot(2);
-            try {
-              if (window.TiddasSpectator && typeof window.TiddasSpectator.refreshQueuePosition === 'function') {
-                window.TiddasSpectator.refreshQueuePosition(match.get('specQueue') || match.get('spectatorQueue') || []);
-              }
-            } catch(_) {}
-          }
-
-          var tournData = match.get('tournament');
-          if (tournData && window.TiddasTournament) {
-            window.TiddasTournament.applyFromServer(tournData);
-          }
-        } catch(_) {}
-
-        const rev = Number(match.get('rev') || 0);
-        if (rev !== Number(window.online.lastSeenRev || -1)) {
-          window.online.lastSeenRev = rev;
-          _pollNoChangeCount = 0;
-          if (_pollCurrentInterval !== _POLL_FAST_MS) _reschedule(_POLL_FAST_MS);
-          const payload = match.get('payload') || null;
-          if (payload && payload.state && _isAlive()) {
-            const _wasSpectator = (window.gameMode === 'spectator' || (window.online && window.online.role === 0));
-            window.onlineApplyState && window.onlineApplyState(payload);
-            if (_wasSpectator && _isAlive()) {
-              window.gameMode = 'spectator';
-              var _badge = document.getElementById('spectator-badge');
-              if (_badge && !_badge.classList.contains('visible')) {
-                _badge.textContent = '👁 Spectateur en ligne';
-                _badge.classList.add('visible');
-              }
-              document.body.classList.add('is-spectating');
-              var _undo = document.getElementById('undo-btn');
-              var _surr = document.getElementById('surrender');
-              var _rest = document.getElementById('restart');
-              if (_undo) _undo.disabled = true;
-              if (_surr) { _surr.disabled = true; _surr.style.opacity = '0.25'; _surr.style.pointerEvents = 'none'; }
-              if (_rest) { _rest.disabled = true; _rest.style.opacity = '0.25'; _rest.style.pointerEvents = 'none'; }
-            }
-            if (_isAlive() && typeof showScreen === 'function') showScreen('game-play-area');
-          }
-        } else {
-          _pollNoChangeCount++;
-          const isOnlineActive = gameMode === 'online' && window.online.connected && window.online.matchId;
-          const hasGameStarted = isOnlineActive && state && (state.phase || state.winner);
-          const bothReady = isOnlineActive && window.online.ready;
-          const canSlowDown = !hasGameStarted && !bothReady;
-          if (canSlowDown && _pollNoChangeCount >= _POLL_SLOW_AFTER_N_EMPTY && _pollCurrentInterval !== _POLL_SLOW_MS) {
-            _reschedule(_POLL_SLOW_MS);
-          }
-          if ((hasGameStarted || bothReady) && _pollCurrentInterval !== _POLL_FAST_MS) {
-            _pollNoChangeCount = 0;
-            _reschedule(_POLL_FAST_MS);
-          }
-        }
-      } catch (e) {
-        if (!_isAlive()) return;
-        _pollConsecutiveErrors++;
-        if (_pollConsecutiveErrors >= 3) {
-          _setOnlineStatus(t('onlineNetworkError', "Erreur réseau Back4App. Vérifie les permissions (CLP) et ta connexion."));
-        }
-        const backoff = Math.min(6000, _POLL_FAST_MS * Math.pow(2, Math.min(_pollConsecutiveErrors - 1, 3)));
-        if (_pollCurrentInterval !== backoff) _reschedule(backoff);
-      } finally {
-        if (_isAlive()) {
-          window.online.fetching = false;
-          try { _updateOnlineGameBar(); } catch (_) {}
-        } else if (window.online) {
-          window.online.fetching = false;
-        }
-      }
-    };
-
-    try {
-      if (window.Parse && window.Parse.LiveQuery && window.online.matchId) {
-        var _lqQuery = new window.Parse.Query(window.BACK4APP_CLASS);
-        _lqQuery.equalTo('objectId', window.online.matchId);
-        window.Parse.LiveQuery.on('error', function() {});
-        _lqQuery.subscribe().then(function(sub) {
-          if (!_isAlive()) {
-            try { sub.unsubscribe && sub.unsubscribe(); } catch(_) {}
-            return;
-          }
-          _liveQuerySub = sub;
-          sub.on('update', function(match) {
-            if (!_isAlive()) return;
-            try {
-              window.online.fetching = true;
-              _lastPeerRevTs = Date.now();
-              _pollConsecutiveErrors = 0;
-              try { window._applyLobbyStateFromMatch && window._applyLobbyStateFromMatch(match); } catch(_) {}
-              try { _processMatchChatFromArray(match); } catch(_) {}
-              try {
-                var rawChat = match.get('ephemeralChat');
-                if (Array.isArray(rawChat)) {
-                  rawChat.forEach(function(msg) {
-                    if (msg && msg.type === 'spectator-chat' && window._onlineChatInjectMsg) {
-                      window._onlineChatInjectMsg && window._onlineChatInjectMsg(msg);
-                    }
-                  });
-                }
-              } catch(_) {}
-              try {
-                var matchStatus = match.get('status') || 'waiting';
-                var liveDotEl = document.getElementById('ol-live-dot');
-                if (liveDotEl) liveDotEl.style.display = (matchStatus === 'playing') ? 'inline-flex' : 'none';
-                var tournData = match.get('tournament');
-                if (tournData && window.TiddasTournament) {
-                  window.TiddasTournament.applyFromServer(tournData);
-                }
-              } catch(_) {}
-              var rev = Number(match.get('rev') || 0);
-              if (rev !== Number(window.online.lastSeenRev || -1)) {
-                window.online.lastSeenRev = rev;
-                var payload = match.get('payload') || null;
-                if (payload && payload.state && _isAlive()) {
-                  window.onlineApplyState && window.onlineApplyState(payload);
-                  if (typeof showScreen === 'function') showScreen('game-play-area');
-                }
-              }
-            } catch(_) {
-            } finally {
-              if (window.online) window.online.fetching = false;
-              try { _updateOnlineGameBar(); } catch(_) {}
-            }
-          });
-        }).catch(function() {
-          if (_isAlive()) _reschedule(_POLL_FAST_MS);
-        });
-      } else {
-        _reschedule(_POLL_FAST_MS);
-      }
-    } catch(_) {
-      _reschedule(_POLL_FAST_MS);
-    }
-
-    tick();
-  };
-
-  function _reconnectIfNeeded() {
-    try {
-      const o = _olEnsureState();
-      if (!o.connected || !o.room || !o.matchId) return;
-      if (document.hidden) return;
-      if (o._actionLocks && (o._actionLocks.connect || o._actionLocks.start || o._actionLocks.rematch)) return;
-      if (!o._reconnectOnVisibleTimer) {
-        o._reconnectOnVisibleTimer = setTimeout(function() {
-          o._reconnectOnVisibleTimer = 0;
-          try {
-            if (o.connected && o.matchId && !o.pollTimer && typeof window._startPolling === 'function') {
-              window._startPolling();
-            }
-          } catch(_) {}
-        }, 250);
-      }
-    } catch(_) {}
-  }
-
-  window.addEventListener('visibilitychange', _reconnectIfNeeded, { passive: true });
-  window.addEventListener('pageshow', _reconnectIfNeeded, { passive: true });
-
-  try {
-    const style = document.createElement('style');
-    style.setAttribute('nonce', 'tiddas');
-    style.textContent = '.is-busy{opacity:.72;pointer-events:none;filter:saturate(.85)}';
-    document.head.appendChild(style);
-  } catch(_) {}
-})();
-</script>
-
-
-<script nonce="tiddas">
-(function(){
-  'use strict';
-  if (window.__TIDDAS_ONLINE_PROD_V2__) return;
-  window.__TIDDAS_ONLINE_PROD_V2__ = true;
-
+  /* ── Phase machine ── */
   const PHASE = Object.freeze({
-    IDLE: 'idle',
-    CONNECTING: 'connecting',
-    LOBBY: 'lobby',
-    READY: 'ready',
-    STARTING: 'starting',
-    PLAYING: 'playing',
-    FINISHED: 'finished',
-    SPECTATING: 'spectating',
-    RECONNECTING: 'reconnecting',
-    ERROR: 'error'
+    IDLE: 'idle', CONNECTING: 'connecting', LOBBY: 'lobby',
+    READY: 'ready', STARTING: 'starting', PLAYING: 'playing',
+    FINISHED: 'finished', SPECTATING: 'spectating',
+    RECONNECTING: 'reconnecting', ERROR: 'error'
   });
 
-  const runtime = {
+  const rt = {
     phase: PHASE.IDLE,
     sessionSeq: 0,
-    requestSeq: 0,
-    transportToken: null,
     pollBusy: false,
     pollTimer: 0,
     pollPending: false,
@@ -34012,1088 +33383,854 @@ window.TiddasSpectator       = SpectatorEnhanced;
     lastMetaAt: 0,
     lastPayloadKey: '',
     lastServerStatus: '',
-    lastNetOkTs: Date.now(),
+    lastNetOkTs: now(),
     lastError: '',
     lastAutoStartKey: '',
     reconnectTimer: 0,
     reconnectMutedUntil: 0,
     internalDisconnect: false,
-    locks: {
-      connect: false,
-      start: false,
-      rematch: false,
-      reconnect: false,
-      disconnect: false
-    },
+    startLock: false,       // lock unique pour onlineStartMatch
+    connectLock: false,
+    rematchLock: false,
+    reconnectLock: false,
+    startLastTs: 0,         // debounce anti-double-clic
+    lastAppliedKey: '',
+    lastSentKey: '',
     logs: [],
     errorStreak: 0,
-    presenceMode: 'stopped',
-    presenceStartedAt: 0,
+    presenceTimer: 0,
     presenceMatchId: '',
     presenceRole: 0,
     presenceLastPingTs: 0,
     presenceLastActive: false
   };
+  window.__tiddasOnlineRuntime = rt;
 
-  const MAX_LOGS = 400;
-  const POLL_MS = {
-    lobbyFast: 1200,
-    lobbySlow: 2800,
-    playing: 1000,
-    spectating: 1000,
-    finished: 1600,
-    hidden: 3500,
-    backoffMax: 8000
-  };
+  const POLL_MS = { fast: 1000, slow: 2800, hidden: 3500, starting: 800 };
 
-  function safeNow() { return Date.now(); }
-  function onlineState() { window.online = window.online || {}; return window.online; }
-  function getRoom() { return String(onlineState().room || ''); }
-  function getMatchId() { return String(onlineState().matchId || ''); }
-  function getRole() { return Number(onlineState().role || 0); }
-  function isPlayer() { return getRole() === 1 || getRole() === 2; }
-  function isHost() { return !!onlineState().isHost && getRole() === 1; }
-  // isSpectator ne doit être true QUE si une connexion online est active.
-  // Sans connexion, role=0 est la valeur par défaut → ne pas considérer comme spectateur.
-  function isSpectator() {
-    if (!isConnected()) return false;
-    return getRole() === 0 || window.gameMode === 'spectator';
-  }
-  function isConnected() { return !!onlineState().connected && !!getMatchId(); }
-  function parseReady() {
-    return !!(window.Parse && window.BACK4APP_CLASS && typeof window.Parse.Query === 'function');
-  }
-  async function ensureParseReady() {
-    if (typeof window._ensureParseReadyAsync === 'function') return !!(await window._ensureParseReadyAsync());
-    if (typeof _ensureParseReadyAsync === 'function') return !!(await _ensureParseReadyAsync());
-    return parseReady();
-  }
-  function safeT(key, fallback) {
-    try {
-      if (typeof window.t === 'function') return window.t(key, fallback);
-      if (typeof t === 'function') return t(key, fallback);
-    } catch (_) {}
-    return fallback;
-  }
-  function safeShowScreen(id) {
-    try {
-      if (typeof window.showScreen === 'function') return window.showScreen(id);
-      if (typeof showScreen === 'function') return showScreen(id);
-    } catch (_) {}
-  }
-  function safeSetStatus(msg) {
-    try {
-      if (typeof window._setOnlineStatus === 'function') return window._setOnlineStatus(msg);
-      if (typeof _setOnlineStatus === 'function') return _setOnlineStatus(msg);
-    } catch (_) {}
-    try {
-      const text = document.getElementById('online-status-text');
-      if (text) text.textContent = msg || '—';
-      const glob = document.getElementById('online-status-global');
-      if (glob) glob.textContent = msg || '';
-    } catch (_) {}
-  }
-  function log(level, event, data) {
-    const entry = {
-      ts: new Date().toISOString(),
-      level: level,
-      event: event,
-      phase: runtime.phase,
-      room: getRoom(),
-      matchId: getMatchId(),
-      data: data || null
-    };
-    runtime.logs.push(entry);
-    if (runtime.logs.length > MAX_LOGS) runtime.logs.shift();
-    try {
-      if (level === 'error') console.error('[Tiddas/OnlineProdV2]', event, data || '');
-      else if (level === 'warn') console.warn('[Tiddas/OnlineProdV2]', event, data || '');
-      else if (window.DEBUG) console.debug('[Tiddas/OnlineProdV2]', event, data || '');
-    } catch (_) {}
-  }
-
+  /* ── Clé de payload pour dédup ── */
   function boardHash(board) {
     if (!Array.isArray(board)) return '0';
     let h = 2166136261 >>> 0;
     for (let i = 0; i < board.length; i++) {
-      const v = Number(board[i] || 0) & 0xff;
-      h ^= v;
+      h ^= (Number(board[i] || 0) & 0xff);
       h = Math.imul(h, 16777619);
     }
     return (h >>> 0).toString(36);
   }
-
-  function inferGameId(match, payload) {
-    try {
-      const direct = payload && payload.meta && payload.meta.gameId;
-      if (direct != null && Number.isFinite(Number(direct))) return Number(direct);
-    } catch (_) {}
-    try {
-      if (match && typeof match.get === 'function') {
-        const v = match.get('gameId');
-        if (v != null && Number.isFinite(Number(v))) return Number(v);
-      }
-    } catch (_) {}
-    try {
-      const current = Number(onlineState().gameId || 0);
-      if (Number.isFinite(current)) return current;
-    } catch (_) {}
-    return 0;
-  }
-
-  function inferMetaAt(payload) {
-    try {
-      const at = payload && payload.meta && payload.meta.at;
-      if (at != null && Number.isFinite(Number(at))) return Number(at);
-    } catch (_) {}
-    return 0;
-  }
-
-  function payloadKey(match, payload, rev) {
-    const state = payload && payload.state ? payload.state : null;
+  function payloadKey(payload, rev) {
+    if (!payload || !payload.state) return '';
+    const m = payload.meta || {};
+    const s = payload.state;
     return [
-      match && match.id ? String(match.id) : getMatchId(),
-      getRoom(),
-      String(inferGameId(match, payload)),
-      String(Number(rev || 0)),
-      String(inferMetaAt(payload)),
-      state ? boardHash(state.board) : 'none',
-      state && state.turn != null ? String(state.turn) : '',
-      state && state.phase ? String(state.phase) : '',
-      state && state.winner != null ? String(state.winner) : ''
+      String(payload.room || getRoom()),
+      String(m.gameId  != null ? m.gameId  : (onlineState().gameId || 0)),
+      String(rev != null ? rev : (m.rev != null ? m.rev : -1)),
+      String(m.at != null ? m.at : 0),
+      String(s.turn   != null ? s.turn   : ''),
+      String(s.phase  || ''),
+      String(s.winner != null ? s.winner : ''),
+      boardHash(s.board)
     ].join('|');
   }
-
-  function beginSession(reason) {
-    runtime.sessionSeq += 1;
-    runtime.requestSeq = 0;
-    runtime.transportToken = null;
-    runtime.lastRev = -1;
-    runtime.lastGameId = -1;
-    runtime.lastMetaAt = 0;
-    runtime.lastPayloadKey = '';
-    runtime.lastServerStatus = '';
-    runtime.lastError = '';
-    runtime.lastAutoStartKey = '';
-    runtime.pollPending = false;
-    runtime.errorStreak = 0;
-    runtime.presenceLastPingTs = 0;
-    runtime.presenceLastActive = false;
-    if (runtime.reconnectTimer) { clearTimeout(runtime.reconnectTimer); runtime.reconnectTimer = 0; }
-    stopRealtime('beginSession:' + reason);
-    try { Presence.stop('begin-session'); } catch (_) {}
-    log('info', 'session.begin', { reason: reason, sessionSeq: runtime.sessionSeq });
-    return makeToken(reason);
+  function inferGameId(payload) {
+    try {
+      if (payload && payload.meta && payload.meta.gameId != null)
+        return Number(payload.meta.gameId);
+    } catch(_) {}
+    return Number(onlineState().gameId || 0);
   }
 
-  function makeToken(name) {
-    return {
-      name: String(name || 'token'),
-      sessionSeq: runtime.sessionSeq,
-      requestSeq: ++runtime.requestSeq,
-      room: getRoom(),
-      matchId: getMatchId(),
-      createdAt: safeNow()
-    };
-  }
-
-  function isTokenCurrent(token, strictMatch) {
-    if (!token) return true;
-    if (token.sessionSeq !== runtime.sessionSeq) return false;
-    if (strictMatch) {
-      if (token.room && token.room !== getRoom()) return false;
-      if (token.matchId && token.matchId !== getMatchId()) return false;
+  /* ── Transition de phase ── */
+  function transition(next, reason, msg) {
+    const prev = rt.phase;
+    rt.phase = next;
+    if (prev !== next) log('debug', 'phase:' + prev + '→' + next, reason || '');
+    // Message d'état selon phase
+    let status = msg || '';
+    if (!status) {
+      if (next === PHASE.CONNECTING)   status = safeT('onlineConnectingRoom', 'Connexion au salon…');
+      else if (next === PHASE.LOBBY)   status = safeT('onlineStatusCreatedHost', 'Salon prêt. En attente du second joueur…');
+      else if (next === PHASE.READY)   status = safeT('onlineStatusTwoPlayersHost', '2 joueurs connectés. Prêt au lancement.');
+      else if (next === PHASE.STARTING)status = 'Lancement de la partie…';
+      else if (next === PHASE.PLAYING) status = safeT('onlineStatusPlayingHost', 'Partie en cours.');
+      else if (next === PHASE.FINISHED)status = safeT('onlineRematchWaitReady', 'Partie terminée — revanche disponible.');
+      else if (next === PHASE.SPECTATING) status = 'Mode spectateur — lecture seule.';
+      else if (next === PHASE.RECONNECTING) status = 'Reconnexion en cours…';
+      else if (next === PHASE.ERROR)   status = rt.lastError || 'Erreur en ligne.';
     }
-    return true;
+    if (status) safeSetStatus(status);
+    syncButtons();
+    // Banner reconnexion
+    const rcBanner = document.getElementById('online-reconnect-banner');
+    if (rcBanner) rcBanner.hidden = (next !== PHASE.RECONNECTING);
+    const rcMsg = document.getElementById('online-reconnect-msg');
+    if (rcMsg && next === PHASE.RECONNECTING) rcMsg.textContent = status || 'Reconnexion…';
+    // Phase indicator
+    const card = document.getElementById('online-status');
+    if (card) card.setAttribute('data-ol-phase', next);
+    // Live dot
+    const liveDot = document.getElementById('ol-live-dot');
+    if (liveDot) liveDot.style.display = (next === PHASE.PLAYING) ? 'inline-flex' : 'none';
   }
 
-  function transition(next, reason, explicitMsg) {
-    const prev = runtime.phase;
-    runtime.phase = next;
-    if (prev !== next) log('info', 'phase', { from: prev, to: next, reason: reason || '' });
-    UI.syncStatus(explicitMsg || '', next);
-    UI.syncButtons();
-  }
+  function syncButtons() {
+    try {
+      const startBtn    = document.getElementById('online-start');
+      const createBtn   = document.getElementById('online-create-room');
+      const connectBtn  = document.getElementById('online-connect');
+      const reconnBtn   = document.getElementById('ogb-reconnect');
+      const rmBtn       = document.getElementById('online-rematch-ready-btn');
 
-  const UI = {
-    syncStatus: function(explicitMsg, phaseOverride) {
-      const phase = phaseOverride || runtime.phase;
-      const card = document.getElementById('online-status');
-      if (card) card.setAttribute('data-ol-phase', phase);
-      let msg = explicitMsg || '';
-      if (!msg) {
-        if (phase === PHASE.CONNECTING) msg = safeT('onlineConnectingRoom', 'Connexion au salon…');
-        else if (phase === PHASE.RECONNECTING) msg = 'Reconnexion en cours…';
-        else if (phase === PHASE.STARTING) msg = safeT('onlineStartOK', 'Lancement de la partie…');
-        else if (phase === PHASE.SPECTATING) msg = 'Mode spectateur — lecture seule.';
-        else if (phase === PHASE.PLAYING) msg = safeT('onlineStatusPlayingHost', 'Partie en cours.');
-        else if (phase === PHASE.FINISHED) msg = safeT('onlineRematchWaitReady', 'Partie terminée — revanche disponible.');
-        else if (phase === PHASE.READY) msg = safeT('onlineStatusTwoPlayersHost', '2 joueurs connectés. Prêt au lancement.');
-        else if (phase === PHASE.LOBBY) msg = safeT('onlineStatusCreatedHost', 'Salon prêt. En attente du second joueur…');
-        else if (phase === PHASE.ERROR) msg = runtime.lastError || 'Erreur en ligne.';
-      }
-      safeSetStatus(msg || '—');
-      const reconnMsg = document.getElementById('online-reconnect-msg');
-      if (reconnMsg && phase === PHASE.RECONNECTING) reconnMsg.textContent = msg || 'Reconnexion en cours…';
-    },
-    syncButtons: function() {
-      const connectBtn = document.getElementById('online-connect');
-      const createBtn = document.getElementById('online-create-room');
-      const startBtn = document.getElementById('online-start');
-      const rmBtn = document.getElementById('online-rematch-ready-btn');
-      const reconnectBtn = document.getElementById('ogb-reconnect');
-
-      const lockOnly = function(el, busy) {
-        if (!el) return;
-        if (busy) {
-          if (!('prodPrevDisabled' in el.dataset)) el.dataset.prodPrevDisabled = el.disabled ? '1' : '0';
-          el.disabled = true;
-        } else if ('prodPrevDisabled' in el.dataset) {
-          el.disabled = el.dataset.prodPrevDisabled === '1';
-          delete el.dataset.prodPrevDisabled;
-        }
-      };
-
-      lockOnly(createBtn, !!runtime.locks.connect);
-      lockOnly(connectBtn, !!runtime.locks.connect);
-      lockOnly(reconnectBtn, !!runtime.locks.reconnect || !!runtime.locks.connect);
+      if (createBtn)  createBtn.disabled  = rt.connectLock;
+      if (connectBtn) connectBtn.disabled = rt.connectLock || !isValidCodeInInput();
+      if (reconnBtn)  reconnBtn.disabled  = rt.reconnectLock || rt.connectLock;
 
       if (startBtn) {
-        const allowStart = isConnected() && isPlayer() && isHost() && !runtime.locks.start && (runtime.phase === PHASE.READY || runtime.phase === PHASE.FINISHED || runtime.phase === PHASE.LOBBY);
-        startBtn.disabled = !allowStart;
+        const canStart = isConnected() && isPlayer() && isHost()
+          && !rt.startLock
+          && (rt.phase === PHASE.READY || rt.phase === PHASE.FINISHED || rt.phase === PHASE.LOBBY);
+        startBtn.disabled = !canStart;
+        startBtn.style.display = (isConnected() && isHost()) ? '' : 'none';
       }
-      if (rmBtn) rmBtn.disabled = !isConnected() || !isPlayer() || runtime.phase !== PHASE.FINISHED || !!runtime.locks.rematch;
+      if (rmBtn) {
+        rmBtn.disabled = !isConnected() || !isPlayer() || rt.phase !== PHASE.FINISHED || rt.rematchLock;
+      }
 
-      if (isSpectator()) {
-        this.ensureSpectatorReadOnly();
-        // Masquer aussi la bannière revanche pour les spectateurs
-        this.hideRematchBanner();
-      } else {
-        this.clearSpectatorReadOnly();
-      }
-    },
-    ensureSpectatorReadOnly: function() {
-      // N'appliquer le mode spectateur que si une connexion online est réellement active
-      if (!isConnected()) return;
-      document.body.classList.add('is-spectating');
-      const badge = document.getElementById('spectator-badge');
-      if (badge) {
-        badge.textContent = '👁 Spectateur en ligne';
-        badge.classList.add('visible');
-      }
-      const specControls = document.getElementById('spectator-controls');
-      if (specControls) specControls.classList.add('visible');
-      const undoBtn = document.getElementById('undo-btn');
-      const surrenderBtn = document.getElementById('surrender');
-      const restartBtn = document.getElementById('restart');
-      if (undoBtn) undoBtn.disabled = true;
-      if (surrenderBtn) { surrenderBtn.disabled = true; surrenderBtn.style.opacity = '0.25'; surrenderBtn.style.pointerEvents = 'none'; }
-      if (restartBtn) { restartBtn.disabled = true; restartBtn.style.opacity = '0.25'; restartBtn.style.pointerEvents = 'none'; }
-      const rematch = document.getElementById('online-rematch');
-      if (rematch) rematch.style.display = 'none';
-    },
-    clearSpectatorReadOnly: function() {
-      const connected = isConnected();
-      // Retirer les classes spectateur quand pas connecté, ou quand connecté en tant que joueur
-      if (!connected || isPlayer()) {
-        document.body.classList.remove('is-spectating');
-        const badge = document.getElementById('spectator-badge');
-        if (badge) badge.classList.remove('visible');
-        const specControls = document.getElementById('spectator-controls');
-        if (specControls) specControls.classList.remove('visible');
-      }
-      const surrenderBtn = document.getElementById('surrender');
-      const restartBtn = document.getElementById('restart');
-      if (surrenderBtn) { surrenderBtn.style.opacity = ''; surrenderBtn.style.pointerEvents = ''; }
-      if (restartBtn) { restartBtn.style.opacity = ''; restartBtn.style.pointerEvents = ''; }
-    },
-    clear: function() {
-      const card = document.getElementById('online-status');
-      if (card) card.removeAttribute('data-ol-phase');
-      this.hideReconnectBanner();
-      this.hideRematchBanner();
+      if (isSpectator()) applySpectatorReadOnly();
+      else clearSpectatorReadOnly();
+    } catch(_) {}
+  }
+
+  function isValidCodeInInput() {
+    try {
+      const inp = document.getElementById('online-room-code');
+      if (!inp) return false;
+      const v = String(inp.value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      return v.length >= 4;
+    } catch(_) { return false; }
+  }
+
+  function applySpectatorReadOnly() {
+    if (!isConnected()) return;
+    document.body.classList.add('is-spectating');
+    const badge = document.getElementById('spectator-badge');
+    if (badge) { badge.textContent = '👁 Spectateur en ligne'; badge.classList.add('visible'); }
+    const ctrl = document.getElementById('spectator-controls');
+    if (ctrl) ctrl.classList.add('visible');
+    ['undo-btn','surrender','restart'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) { el.disabled = true; el.style.opacity = '0.25'; el.style.pointerEvents = 'none'; }
+    });
+    const rm = document.getElementById('online-rematch');
+    if (rm) rm.style.display = 'none';
+  }
+
+  function clearSpectatorReadOnly() {
+    if (!isConnected() || isPlayer()) {
       document.body.classList.remove('is-spectating');
       const badge = document.getElementById('spectator-badge');
       if (badge) badge.classList.remove('visible');
-      const specControls = document.getElementById('spectator-controls');
-      if (specControls) specControls.classList.remove('visible');
-      const liveDotEl = document.getElementById('ol-live-dot');
-      if (liveDotEl) liveDotEl.style.display = 'none';
-      const staleWarn = document.getElementById('ogb-stale-warn');
-      if (staleWarn) { staleWarn.textContent = ''; staleWarn.classList.remove('visible'); }
-      this.clearSpectatorReadOnly();
-    },
-    showReconnectBanner: function(msg) {
-      const banner = document.getElementById('online-reconnect-banner');
-      const text = document.getElementById('online-reconnect-msg');
-      if (text) text.textContent = msg || 'Reconnexion en cours…';
-      if (banner) banner.hidden = false;
-    },
-    hideReconnectBanner: function() {
-      const banner = document.getElementById('online-reconnect-banner');
-      if (banner) banner.hidden = true;
-    },
-    syncRematchUi: function(match) {
-      const finished = !!(match && typeof match.get === 'function' && (match.get('status') || '') === 'finished');
+      const ctrl = document.getElementById('spectator-controls');
+      if (ctrl) ctrl.classList.remove('visible');
+    }
+    ['surrender','restart'].forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) { el.style.opacity = ''; el.style.pointerEvents = ''; }
+    });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     TRANSPORT — polling + LiveQuery hints
+  ══════════════════════════════════════════════════════════ */
+  function stopTransport(reason) {
+    if (rt.pollTimer) { clearTimeout(rt.pollTimer); clearInterval(rt.pollTimer); rt.pollTimer = 0; }
+    onlineState().pollTimer = 0;
+    stopLiveHints();
+    rt.pollBusy = false;
+    rt.pollPending = false;
+    log('debug', 'transport.stop', reason || '');
+  }
+
+  function startTransport(reason) {
+    if (!isConnected()) return;
+    stopTransport(reason);
+    const token = { sessionSeq: rt.sessionSeq, matchId: getMatchId(), room: getRoom() };
+    rt.transportToken = token;
+    startLiveHints(token);
+    schedulePoll(0, token);
+  }
+
+  function schedulePoll(delay, token) {
+    const tok = token || rt.transportToken;
+    if (!tok || !isTokenValid(tok)) return;
+    if (rt.pollTimer) { clearTimeout(rt.pollTimer); }
+    rt.pollTimer = setTimeout(function () { doPoll(tok); }, delay || 0);
+    onlineState().pollTimer = rt.pollTimer;
+  }
+
+  async function doPoll(token) {
+    if (!isTokenValid(token)) return;
+    if (rt.pollBusy) { rt.pollPending = true; return; }
+    rt.pollBusy = true;
+    const matchId = getMatchId();
+    try {
+      if (!matchId || !parseReady()) { throw new Error('not-ready'); }
+      const q = new window.Parse.Query(window.BACK4APP_CLASS);
+      const match = await q.get(matchId);
+      if (!isTokenValid(token)) return;
+      rt.lastNetOkTs = now();
+      rt.errorStreak = 0;
+      try { if (typeof _lastPeerRevTs !== 'undefined') _lastPeerRevTs = now(); } catch(_) {}
+      await processMatch(match, token);
+    } catch (err) {
+      if (!isTokenValid(token)) return;
+      rt.errorStreak = (rt.errorStreak || 0) + 1;
+      log('warn', 'poll.error', String(err && err.message || err));
+      if (rt.errorStreak >= 3) {
+        rt.lastError = safeT('onlineNetworkError', 'Erreur réseau Back4App.');
+        transition(PHASE.RECONNECTING, 'poll-error', rt.lastError);
+        scheduleReconnect('poll-error');
+      }
+    } finally {
+      rt.pollBusy = false;
+      if (onlineState()) onlineState().fetching = false;
+      try { if (typeof _updateOnlineGameBar === 'function') _updateOnlineGameBar(); } catch(_) {}
+      if (isTokenValid(token)) {
+        if (rt.pollPending) {
+          rt.pollPending = false;
+          schedulePoll(0, token);
+        } else {
+          schedulePoll(computePollDelay(), token);
+        }
+      }
+    }
+  }
+
+  function computePollDelay() {
+    if (document.hidden) return POLL_MS.hidden;
+    if (rt.phase === PHASE.STARTING) return POLL_MS.starting;
+    if (rt.phase === PHASE.PLAYING || rt.phase === PHASE.SPECTATING) return POLL_MS.fast;
+    if (rt.phase === PHASE.READY) return 1200;
+    return POLL_MS.slow;
+  }
+
+  function isTokenValid(token) {
+    if (!token) return false;
+    return token.sessionSeq === rt.sessionSeq
+      && (!token.matchId || token.matchId === getMatchId())
+      && (!token.room    || token.room    === getRoom());
+  }
+
+  async function syncNow(reason, token) {
+    const tok = token || rt.transportToken;
+    if (!isConnected()) return false;
+    if (!parseReady()) { await ensureParseReady(); }
+    const matchId = getMatchId();
+    if (!matchId) return false;
+    // Ne pas bloquer sur pollBusy — attendre max 200ms
+    if (rt.pollBusy) {
+      await new Promise(function(r){ setTimeout(r, 120); });
+    }
+    if (tok && !isTokenValid(tok)) return false;
+    rt.pollBusy = true;
+    try {
+      const q = new window.Parse.Query(window.BACK4APP_CLASS);
+      const match = await q.get(matchId);
+      if (tok && !isTokenValid(tok)) return false;
+      rt.lastNetOkTs = now();
+      rt.errorStreak = 0;
+      await processMatch(match, tok || rt.transportToken);
+      return true;
+    } catch(err) {
+      log('warn', 'syncNow.error', String(err && err.message || err));
+      return false;
+    } finally {
+      rt.pollBusy = false;
+      if (onlineState()) onlineState().fetching = false;
+    }
+  }
+
+  async function processMatch(match, token) {
+    if (!match) return;
+    if (match.id && getMatchId() && String(match.id) !== getMatchId()) return;
+
+    const status = String(match.get('status') || 'waiting');
+    rt.lastServerStatus = status;
+    rt.errorStreak = 0;
+
+    // Lobby state
+    try {
+      if (typeof window._applyLobbyStateFromMatch_base === 'function')
+        window._applyLobbyStateFromMatch_base(match);
+      else if (typeof window._applyLobbyStateFromMatch === 'function')
+        window._applyLobbyStateFromMatch(match);
+    } catch(_) {}
+
+    // Phase
+    if      (isSpectator())          transition(PHASE.SPECTATING, status);
+    else if (status === 'finished')  transition(PHASE.FINISHED,   status);
+    else if (status === 'playing')   transition(PHASE.PLAYING,    status);
+    else if (status === 'ready')     transition(PHASE.READY,      status);
+    else                             transition(PHASE.LOBBY,      status);
+
+    // Chat / spectateur / tournoi
+    try { if (typeof _processMatchChatFromArray === 'function') _processMatchChatFromArray(match); } catch(_) {}
+    try {
+      const rawChat = match.get('ephemeralChat');
+      if (Array.isArray(rawChat) && window._onlineChatInjectMsg) {
+        rawChat.forEach(function(m) {
+          if (m && m.type === 'spectator-chat') window._onlineChatInjectMsg(m);
+        });
+      }
+    } catch(_) {}
+    try {
+      const p1Active = match.get('p1Active') !== false;
+      const p2Active = match.get('p2Active') !== false;
+      if (isSpectator() && window.TiddasSpectator) {
+        if (!p1Active && window.TiddasSpectator.showTakeoverSlot) window.TiddasSpectator.showTakeoverSlot(1);
+        else if (!p2Active && window.TiddasSpectator.showTakeoverSlot) window.TiddasSpectator.showTakeoverSlot(2);
+        if (typeof window.TiddasSpectator.refreshQueuePosition === 'function')
+          window.TiddasSpectator.refreshQueuePosition(match.get('specQueue') || match.get('spectatorQueue') || []);
+      }
+    } catch(_) {}
+    try {
+      const td = match.get('tournament');
+      if (td && window.TiddasTournament && typeof window.TiddasTournament.applyFromServer === 'function')
+        window.TiddasTournament.applyFromServer(td);
+    } catch(_) {}
+
+    // Payload
+    const rev = Number(match.get('rev') || 0);
+    const payload = match.get('payload') || null;
+    const gameId = payload ? inferGameId(payload) : 0;
+    const key = payload && payload.state ? payloadKey(payload, rev) : '';
+    const isNewer = (gameId > rt.lastGameId)
+      || (gameId === rt.lastGameId && rev > rt.lastRev)
+      || (gameId === rt.lastGameId && rev === rt.lastRev && inferMetaAt(payload) > rt.lastMetaAt);
+    const isDup = key && key === rt.lastPayloadKey;
+
+    if (payload && payload.state && !isDup && isNewer) {
+      const baseApply = window._baseOnlineApplyState || window.onlineApplyState;
+      if (typeof baseApply === 'function') {
+        baseApply(payload);
+        rt.lastPayloadKey = key;
+        rt.lastMetaAt = Math.max(rt.lastMetaAt, inferMetaAt(payload));
+      }
+    }
+
+    rt.lastRev = Math.max(rt.lastRev, rev);
+    rt.lastGameId = Math.max(rt.lastGameId, gameId);
+    onlineState().lastSeenRev = Math.max(Number(onlineState().lastSeenRev || -1), rev);
+
+    if (status === 'playing' || status === 'finished' || isSpectator())
+      safeShowScreen('game-play-area');
+
+    if (isSpectator()) applySpectatorReadOnly();
+    else clearSpectatorReadOnly();
+
+    syncRematchUi(match);
+
+    if (isConnected() && isPlayer()) presenceStart();
+    else presenceStop('match:' + status);
+
+    if (status === 'finished' && isPlayer()) await maybeAutoStartRematch(match);
+    else rt.lastAutoStartKey = '';
+
+    syncButtons();
+    const rcBanner = document.getElementById('online-reconnect-banner');
+    if (rcBanner) rcBanner.hidden = true;
+  }
+
+  function inferMetaAt(payload) {
+    try { const at = payload && payload.meta && payload.meta.at; if (at != null) return Number(at); } catch(_) {}
+    return 0;
+  }
+
+  /* ── LiveQuery hints ── */
+  function startLiveHints(token) {
+    stopLiveHints();
+    if (!parseReady() || !getMatchId() || !(window.Parse && window.Parse.LiveQuery)) return;
+    try {
+      const q = new window.Parse.Query(window.BACK4APP_CLASS);
+      q.equalTo('objectId', getMatchId());
+      q.subscribe().then(function(sub) {
+        if (!isTokenValid(token)) { try { sub.unsubscribe(); } catch(_) {} return; }
+        rt.liveSub = sub;
+        rt.liveMatchId = getMatchId();
+        ['update','create','enter','leave','close'].forEach(function(evt) {
+          try { sub.on(evt, function() { if (isTokenValid(token)) schedulePoll(0, token); }); } catch(_) {}
+        });
+      }).catch(function(){});
+    } catch(_) {}
+  }
+
+  function stopLiveHints() {
+    if (rt.liveSub) { try { rt.liveSub.unsubscribe(); } catch(_) {} rt.liveSub = null; }
+    rt.liveMatchId = '';
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     SESSION
+  ══════════════════════════════════════════════════════════ */
+  function beginSession(reason) {
+    rt.sessionSeq += 1;
+    rt.pollPending = false;
+    rt.errorStreak = 0;
+    rt.lastRev = -1;
+    rt.lastGameId = -1;
+    rt.lastMetaAt = 0;
+    rt.lastPayloadKey = '';
+    rt.lastServerStatus = '';
+    rt.lastError = '';
+    rt.lastAutoStartKey = '';
+    rt.lastAppliedKey = '';
+    rt.lastSentKey = '';
+    rt.startLastTs = 0;
+    if (rt.reconnectTimer) { clearTimeout(rt.reconnectTimer); rt.reconnectTimer = 0; }
+    stopTransport('beginSession:' + reason);
+    presenceStop('begin-session');
+    log('info', 'session.begin', { reason: reason, seq: rt.sessionSeq });
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     PRÉSENCE
+  ══════════════════════════════════════════════════════════ */
+  function presenceStart() {
+    if (!isConnected() || !isPlayer()) return;
+    const mid = getMatchId(), role = getRole();
+    if (rt.presenceTimer && rt.presenceMatchId === mid && rt.presenceRole === role) return;
+    presenceStop('restart');
+    rt.presenceMatchId = mid;
+    rt.presenceRole = role;
+    presencePing(true, 'start');
+    rt.presenceTimer = setInterval(function() { presencePing(true, 'interval'); }, 15000);
+  }
+
+  function presenceStop(reason) {
+    if (rt.presenceTimer) { clearInterval(rt.presenceTimer); rt.presenceTimer = 0; }
+    if (isConnected() && isPlayer() && rt.presenceMatchId === getMatchId())
+      presencePing(false, reason || 'stop');
+    rt.presenceMatchId = '';
+    rt.presenceRole = 0;
+  }
+
+  async function presencePing(active, reason) {
+    if (!parseReady()) return;
+    const mid = getMatchId(), role = getRole();
+    if (!mid || !role || role < 1 || role > 2) return;
+    const ts = now();
+    if (active && rt.presenceLastActive && (ts - rt.presenceLastPingTs) < 5000 && reason !== 'start') return;
+    try {
+      const obj = new window.Parse.Object(window.BACK4APP_CLASS);
+      obj.id = mid;
+      obj.set('p' + role + 'LastPing', ts);
+      obj.set('p' + role + 'Active', !!active);
+      await obj.save();
+      rt.presenceLastPingTs = ts;
+      rt.presenceLastActive = !!active;
+    } catch(_) {}
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     RECONNEXION
+  ══════════════════════════════════════════════════════════ */
+  function scheduleReconnect(reason) {
+    if (!isConnected() || !getRoom()) return;
+    if (rt.reconnectTimer) return;
+    if (now() < rt.reconnectMutedUntil) return;
+    if (rt.phase === PHASE.CONNECTING || rt.phase === PHASE.STARTING) return;
+    if (rt.connectLock || rt.startLock || rt.rematchLock) return;
+    rt.reconnectTimer = setTimeout(async function() {
+      rt.reconnectTimer = 0;
+      await doReconnect(reason || 'scheduled');
+    }, 400);
+  }
+
+  async function doReconnect(reason) {
+    if (!isConnected() && !getRoom()) return false;
+    const staleFor = now() - Math.max(rt.lastNetOkTs, 0);
+    if (reason !== 'manual' && staleFor < 30000 && rt.pollTimer) {
+      startTransport('transport-recover');
+      return true;
+    }
+    if (rt.reconnectLock) return false;
+    rt.reconnectLock = true;
+    syncButtons();
+    try {
+      transition(PHASE.RECONNECTING, reason, 'Reconnexion au salon ' + (getRoom() || '') + '…');
+      if (typeof window._baseOnlineConnect === 'function') {
+        await window._baseOnlineConnect(getRoom(), false);
+      } else if (typeof window.onlineConnectToRoom_Back4App === 'function') {
+        await window.onlineConnectToRoom_Back4App(getRoom(), false);
+      }
+      return true;
+    } catch(err) {
+      rt.lastError = 'Échec reconnexion : ' + String(err && err.message || err);
+      transition(PHASE.ERROR, 'reconnect-failed', rt.lastError);
+      return false;
+    } finally {
+      rt.reconnectLock = false;
+      syncButtons();
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     REMATCH
+  ══════════════════════════════════════════════════════════ */
+  async function setRematchReady(isReady) {
+    if (rt.rematchLock) return false;
+    rt.rematchLock = true;
+    syncButtons();
+    try {
+      if (!isConnected() || !isPlayer() || !getMatchId()) return false;
+      if (!(await ensureParseReady())) return false;
+      const role = getRole();
+      const field = role === 1 ? 'rm1' : 'rm2';
+      const q = new window.Parse.Query(window.BACK4APP_CLASS);
+      const live = await q.get(getMatchId());
+      if (String(live.get('status') || '') !== 'finished') return false;
+      live.set(field, !!isReady);
+      live.unset('rematch');
+      live.increment('rev', 1);
+      await live.save();
+      await syncNow('rematch-toggle');
+      return true;
+    } catch(_) { return false; }
+    finally { rt.rematchLock = false; syncButtons(); }
+  }
+
+  async function maybeAutoStartRematch(match) {
+    if (!match || !isHost() || !isPlayer()) return false;
+    if (match.get('status') !== 'finished') return false;
+    const rm1 = !!match.get('rm1'), rm2 = !!match.get('rm2');
+    if (!(rm1 && rm2)) return false;
+    const key = [String(match.id || ''), String(match.get('rev') || 0)].join('|');
+    if (rt.lastAutoStartKey === key) return false;
+    rt.lastAutoStartKey = key;
+    try { if (typeof hideWinnerAnimation === 'function') hideWinnerAnimation(); } catch(_) {}
+    safeShowScreen('game-play-area');
+    try {
+      await window.onlineStartMatch_Back4App();
+    } catch(_) { rt.lastAutoStartKey = ''; }
+    return true;
+  }
+
+  function syncRematchUi(match) {
+    try {
+      const finished = match && typeof match.get === 'function' && match.get('status') === 'finished';
       const rm1 = !!(match && typeof match.get === 'function' && match.get('rm1'));
       const rm2 = !!(match && typeof match.get === 'function' && match.get('rm2'));
       const chip1 = document.getElementById('online-rm1-chip');
       const chip2 = document.getElementById('online-rm2-chip');
-      const mine = getRole() === 1 ? rm1 : getRole() === 2 ? rm2 : false;
-      const peer = getRole() === 1 ? rm2 : getRole() === 2 ? rm1 : false;
-
-      // Mettre à jour les chips de statut
       if (chip1) chip1.classList.toggle('ready', rm1);
       if (chip2) chip2.classList.toggle('ready', rm2);
 
-      // Section lobby (#online-rematch) toujours masquée — la bannière fait foi
-      const wrap = document.getElementById('online-rematch');
-      const btn = document.getElementById('online-rematch-ready-btn');
-      if (wrap) wrap.style.display = 'none';
-      if (btn) btn.style.display = 'none';
-
-      // Vérifier si KoTH est actif (file spectateurs non vide) : désactive la revanche classique
-      let kothActive = false;
-      try {
-        const sq = match && typeof match.get === 'function' && (match.get('spectatorQueue') || []);
-        kothActive = Array.isArray(sq) && sq.length > 0;
-      } catch (_) {}
-
-      const showRevanche = finished && isPlayer() && !kothActive;
+      const kothActive = (function() {
+        try {
+          const sq = match && typeof match.get === 'function' && (match.get('spectatorQueue') || []);
+          return Array.isArray(sq) && sq.length > 0;
+        } catch(_) { return false; }
+      })();
+      const showRevanche = !!finished && isPlayer() && !kothActive;
 
       const banner = document.getElementById('tpatch-rematch-banner');
-      const msgEl = document.getElementById('tpatch-rematch-msg');
+      const msgEl  = document.getElementById('tpatch-rematch-msg');
       const reqBtn = document.getElementById('tpatch-rematch-request-btn');
       const accBtn = document.getElementById('tpatch-rematch-accept-btn');
-
       if (!banner) return;
-      if (!showRevanche) {
-        banner.classList.remove('visible');
-        return;
-      }
-
+      if (!showRevanche) { banner.classList.remove('visible'); return; }
       banner.classList.add('visible');
+
+      const mine = getRole() === 1 ? rm1 : getRole() === 2 ? rm2 : false;
+      const peer = getRole() === 1 ? rm2 : getRole() === 2 ? rm1 : false;
       if (reqBtn) {
         reqBtn.style.display = '';
-        reqBtn.disabled = !!runtime.locks.rematch;
-        reqBtn.classList.toggle('ol-ready', !!mine);
+        reqBtn.disabled = rt.rematchLock;
+        reqBtn.classList.toggle('ol-ready', mine);
         reqBtn.textContent = mine ? '✓ Annuler' : '🔄 Je suis prêt';
-        // Recréer le handler à chaque sync pour refléter l'état courant (mine)
-        const _mineSnap = mine;
         reqBtn.onclick = null;
         reqBtn.onclick = function() {
-          const p = Rematch.setReady(!_mineSnap);
-          if (p && typeof p.catch === 'function') p.catch(function() {});
+          const p = setRematchReady(!mine);
+          if (p && typeof p.catch === 'function') p.catch(function(){});
         };
       }
-      if (accBtn) {
-        accBtn.style.display = 'none';
-        accBtn.onclick = null;
-      }
+      if (accBtn) { accBtn.style.display = 'none'; accBtn.onclick = null; }
       if (msgEl) {
         if (mine && peer) msgEl.textContent = isHost() ? 'Les deux joueurs sont prêts — lancement…' : "Les deux joueurs sont prêts — l'hôte lance…";
-        else if (mine) msgEl.textContent = "Tu es prêt ✓ — En attente de l'adversaire…";
-        else if (peer) msgEl.textContent = "L'adversaire est prêt — confirme ta revanche.";
-        else msgEl.textContent = 'Partie terminée. Clique quand tu es prêt.';
+        else if (mine)   msgEl.textContent = "Tu es prêt ✓ — En attente de l'adversaire…";
+        else if (peer)   msgEl.textContent = "L'adversaire est prêt — confirme ta revanche.";
+        else             msgEl.textContent = 'Partie terminée. Clique quand tu es prêt.';
       }
       if (mine && peer) {
-        try { hideWinnerAnimation(); } catch (_) {}
-        try { showScreen('game-play-area'); } catch (_) {}
-      }
-    },
-    hideRematchBanner: function() {
-      const banner = document.getElementById('tpatch-rematch-banner');
-      if (banner) banner.classList.remove('visible');
-    }
-  };
-
-  const Presence = {
-    timer: 0,
-    start: function(reason) {
-      if (!isConnected() || !isPlayer()) return;
-      const matchId = getMatchId();
-      const role = getRole();
-      const sameSession = !!this.timer && runtime.presenceMode === 'active' && runtime.presenceMatchId === matchId && runtime.presenceRole === role;
-      if (!sameSession) {
-        this.stop('restart');
-        runtime.presenceMode = 'active';
-        runtime.presenceStartedAt = Date.now();
-        runtime.presenceMatchId = matchId;
-        runtime.presenceRole = role;
-        this.ping(true, reason || 'start');
-        this.timer = window.setInterval(() => { this.ping(true, 'interval'); }, 15000);
-      } else if ((Date.now() - Number(runtime.presenceLastPingTs || 0)) > 12000) {
-        this.ping(true, reason || 'refresh');
-      }
-    },
-    stop: function(reason, markInactive) {
-      if (this.timer) { clearInterval(this.timer); this.timer = 0; }
-      const canMarkInactive = !!markInactive && isConnected() && isPlayer() && !!getMatchId() && getMatchId() === runtime.presenceMatchId && getRole() === runtime.presenceRole;
-      runtime.presenceMode = 'stopped';
-      runtime.presenceStartedAt = 0;
-      if (canMarkInactive) this.ping(false, reason || 'stop');
-      runtime.presenceMatchId = '';
-      runtime.presenceRole = 0;
-    },
-    ping: async function(active, reason) {
-      if (!parseReady()) return false;
-      const matchId = getMatchId();
-      const role = getRole();
-      if (!matchId || !role || role < 1 || role > 2) return false;
-      const nowTs = Date.now();
-      if (!!active && runtime.presenceLastActive === true && (nowTs - Number(runtime.presenceLastPingTs || 0)) < 5000 && reason !== 'start' && reason !== 'refresh') return true;
-      try {
-        const obj = new window.Parse.Object(window.BACK4APP_CLASS);
-        obj.id = matchId;
-        obj.set('p' + role + 'LastPing', nowTs);
-        obj.set('p' + role + 'Active', !!active);
-        await obj.save();
-        runtime.presenceLastPingTs = nowTs;
-        runtime.presenceLastActive = !!active;
-        log('debug', 'presence.ping', { active: !!active, reason: reason || '' });
-        return true;
-      } catch (err) {
-        log('warn', 'presence.ping.failed', { reason: reason || '', err: String(err && err.message || err) });
-        return false;
-      }
-    }
-  };
-
-  const Transport = {
-    stop: function(reason) {
-      stopRealtime(reason || 'transport.stop');
-    },
-    start: function(reason) {
-      if (!isConnected()) return;
-      stopRealtime(reason || 'transport.start');
-      const token = makeToken(reason || 'transport');
-      runtime.transportToken = token;
-      this.startLiveHints(token);
-      this.bump('start', token);
-    },
-    bump: function(reason, token) {
-      const activeToken = token || runtime.transportToken;
-      if (!activeToken || !isTokenCurrent(activeToken, true)) return;
-      if (runtime.pollBusy) {
-        runtime.pollPending = true;
-        return;
-      }
-      if (runtime.pollTimer) clearTimeout(runtime.pollTimer);
-      runtime.pollTimer = window.setTimeout(() => { this.pump(reason || 'tick', activeToken); }, 0);
-      onlineState().pollTimer = runtime.pollTimer;
-    },
-    pump: async function(reason, token) {
-      if (!isTokenCurrent(token, true)) return;
-      await this.syncNow(reason || 'tick', token);
-      if (!isTokenCurrent(token, true)) return;
-      if (runtime.pollPending) {
-        runtime.pollPending = false;
-        return this.bump('pending', token);
-      }
-      const delay = this.computeDelay();
-      if (runtime.pollTimer) clearTimeout(runtime.pollTimer);
-      runtime.pollTimer = window.setTimeout(() => { this.pump('loop', token); }, delay);
-      onlineState().pollTimer = runtime.pollTimer;
-    },
-    computeDelay: function() {
-      if (document.hidden) return POLL_MS.hidden;
-      if (runtime.phase === PHASE.PLAYING) return POLL_MS.playing;
-      if (runtime.phase === PHASE.SPECTATING) return POLL_MS.spectating;
-      if (runtime.phase === PHASE.STARTING) return 900;
-      if (runtime.phase === PHASE.FINISHED) return POLL_MS.finished;
-      if (runtime.phase === PHASE.READY) return POLL_MS.lobbyFast;
-      return POLL_MS.lobbySlow;
-    },
-    syncNow: async function(source, token) {
-      if (!isConnected()) return false;
-      if (runtime.pollBusy) return false;
-      if (!parseReady()) {
-        const ok = await ensureParseReady();
-        if (!ok) return false;
-      }
-      const matchId = getMatchId();
-      if (!matchId) return false;
-      const activeToken = token || runtime.transportToken || makeToken('sync');
-      runtime.pollBusy = true;
-      try {
-        const q = new window.Parse.Query(window.BACK4APP_CLASS);
-        const match = await q.get(matchId);
-        if (!isTokenCurrent(activeToken, true)) return false;
-        runtime.lastNetOkTs = Date.now();
-        try { if (typeof _lastPeerRevTs !== 'undefined') _lastPeerRevTs = Date.now(); } catch (_) {}
-        await this.processMatch(match, { source: source || 'sync', token: activeToken });
-        return true;
-      } catch (err) {
-        runtime.errorStreak = Number(runtime.errorStreak || 0) + 1;
-        runtime.lastError = safeT('onlineNetworkError', 'Erreur réseau Back4App. Vérifie les permissions (CLP) et ta connexion.');
-        log('warn', 'sync.failed', { source: source || '', err: String(err && err.message || err), streak: runtime.errorStreak });
-        if (runtime.errorStreak >= 2) {
-          transition(PHASE.RECONNECTING, 'sync-error', runtime.lastError);
-          UI.showReconnectBanner(runtime.lastError);
-          Reconnect.schedule('sync-error');
-        }
-        return false;
-      } finally {
-        runtime.pollBusy = false;
-        try { if (typeof _updateOnlineGameBar === 'function') _updateOnlineGameBar(); } catch (_) {}
-      }
-    },
-    processMatch: async function(match, meta) {
-      if (!match) return;
-      if (match.id && getMatchId() && String(match.id) !== getMatchId()) {
-        log('debug', 'match.ignored.foreign', { incoming: String(match.id), current: getMatchId() });
-        return;
-      }
-
-      const status = String(match.get('status') || 'waiting');
-      runtime.lastServerStatus = status;
-      runtime.errorStreak = 0;
-      runtime.lastError = '';
-
-      try {
-        if (typeof window._applyLobbyStateFromMatch === 'function') window._applyLobbyStateFromMatch(match);
-        else if (typeof _applyLobbyStateFromMatch === 'function') _applyLobbyStateFromMatch(match);
-      } catch (err) {
-        log('warn', 'lobby.apply.failed', { err: String(err && err.message || err) });
-      }
-
-      if (isSpectator()) transition(PHASE.SPECTATING, meta && meta.source || status);
-      else if (status === 'finished') transition(PHASE.FINISHED, meta && meta.source || status);
-      else if (status === 'playing') transition(PHASE.PLAYING, meta && meta.source || status);
-      else if (status === 'ready') transition(PHASE.READY, meta && meta.source || status);
-      else transition(PHASE.LOBBY, meta && meta.source || status);
-
-      try {
-        const liveDotEl = document.getElementById('ol-live-dot');
-        if (liveDotEl) liveDotEl.style.display = (status === 'playing') ? 'inline-flex' : 'none';
-      } catch (_) {}
-
-      try {
-        const p1Active = match.get('p1Active') !== false;
-        const p2Active = match.get('p2Active') !== false;
-        if (isSpectator() && window.TiddasSpectator) {
-          if (!p1Active && window.TiddasSpectator.showTakeoverSlot) window.TiddasSpectator.showTakeoverSlot(1);
-          else if (!p2Active && window.TiddasSpectator.showTakeoverSlot) window.TiddasSpectator.showTakeoverSlot(2);
-          if (typeof window.TiddasSpectator.refreshQueuePosition === 'function') {
-            window.TiddasSpectator.refreshQueuePosition(match.get('specQueue') || match.get('spectatorQueue') || []);
-          }
-        }
-      } catch (_) {}
-
-      try {
-        const tournData = match.get('tournament');
-        if (tournData && window.TiddasTournament && typeof window.TiddasTournament.applyFromServer === 'function') {
-          window.TiddasTournament.applyFromServer(tournData);
-        }
-      } catch (_) {}
-
-      try {
-        if (typeof _processMatchChatFromArray === 'function') _processMatchChatFromArray(match);
-      } catch (_) {}
-
-      try {
-        const rawChat = match.get('ephemeralChat');
-        if (Array.isArray(rawChat) && window._onlineChatInjectMsg) {
-          rawChat.forEach(function(msg) {
-            if (msg && msg.type === 'spectator-chat') window._onlineChatInjectMsg(msg);
-          });
-        }
-      } catch (_) {}
-
-      const rev = Number(match.get('rev') || 0);
-      const payload = match.get('payload') || null;
-      const gameId = inferGameId(match, payload);
-      const metaAt = inferMetaAt(payload);
-      const key = payload && payload.state ? payloadKey(match, payload, rev) : '';
-      const isNewerGame = gameId > runtime.lastGameId;
-      const isSameGame = gameId === runtime.lastGameId;
-      const isNewerRev = isSameGame ? rev > runtime.lastRev : true;
-      const isNewerAt = isSameGame ? (rev === runtime.lastRev ? metaAt > runtime.lastMetaAt : true) : true;
-      const isDuplicate = !!key && key === runtime.lastPayloadKey;
-
-      if (payload && payload.state && !isDuplicate && (isNewerGame || (isSameGame && (isNewerRev || isNewerAt)))) {
-        log('debug', 'payload.apply', { rev: rev, gameId: gameId, source: meta && meta.source || '' });
-        if (typeof window.onlineApplyState === 'function') window.onlineApplyState(payload);
-        else if (typeof onlineApplyState === 'function') onlineApplyState(payload);
-        runtime.lastPayloadKey = key;
-        runtime.lastMetaAt = Math.max(runtime.lastMetaAt, metaAt);
-      } else if (payload && payload.state && isDuplicate) {
-        log('debug', 'payload.skip.duplicate', { rev: rev, gameId: gameId });
-      } else if (payload && payload.state) {
-        log('debug', 'payload.skip.stale', { rev: rev, gameId: gameId, lastRev: runtime.lastRev, lastGameId: runtime.lastGameId });
-      }
-
-      runtime.lastRev = Math.max(runtime.lastRev, rev);
-      runtime.lastGameId = Math.max(runtime.lastGameId, gameId);
-      runtime.lastMetaAt = Math.max(runtime.lastMetaAt, metaAt);
-      onlineState().lastSeenRev = Math.max(Number(onlineState().lastSeenRev || -1), rev);
-
-      if (status === 'playing' || status === 'finished' || isSpectator()) {
+        try { hideWinnerAnimation(); } catch(_) {}
         safeShowScreen('game-play-area');
       }
-
-      if (isSpectator()) UI.ensureSpectatorReadOnly();
-      else UI.clearSpectatorReadOnly();
-      UI.syncRematchUi(match);
-
-      if (isConnected() && isPlayer()) Presence.start('match:' + status);
-      else Presence.stop('match:' + status);
-
-      try {
-        if (window.TiddasPatch && window.TiddasPatch.SeamlessResume && typeof window.TiddasPatch.SeamlessResume.saveSession === 'function' && isPlayer()) {
-          window.TiddasPatch.SeamlessResume.saveSession();
-        }
-      } catch (_) {}
-
-      if (status === 'finished' && isPlayer()) await Rematch.maybeAutoStart(match);
-      else runtime.lastAutoStartKey = '';
-
-      UI.syncStatus('', runtime.phase);
-      UI.syncButtons();
-      UI.hideReconnectBanner();
-    },
-    startLiveHints: function(token) {
-      this.stopLiveHints();
-      if (!parseReady() || !getMatchId() || !(window.Parse && window.Parse.LiveQuery)) return;
-      try {
-        const q = new window.Parse.Query(window.BACK4APP_CLASS);
-        q.equalTo('objectId', getMatchId());
-        q.subscribe().then((sub) => {
-          if (!isTokenCurrent(token, true)) {
-            try { if (sub && sub.unsubscribe) sub.unsubscribe(); } catch (_) {}
-            return;
-          }
-          runtime.liveSub = sub;
-          runtime.liveMatchId = getMatchId();
-          ['update', 'create', 'enter', 'leave'].forEach((evt) => {
-            try { sub.on(evt, () => { this.bump('live:' + evt, token); }); } catch (_) {}
-          });
-          try { sub.on('close', () => { this.bump('live:close', token); }); } catch (_) {}
-          log('debug', 'live.hint.started', { matchId: getMatchId() });
-        }).catch((err) => {
-          log('warn', 'live.hint.failed', { err: String(err && err.message || err) });
-        });
-      } catch (err) {
-        log('warn', 'live.hint.error', { err: String(err && err.message || err) });
-      }
-    },
-    stopLiveHints: function() {
-      if (runtime.liveSub) {
-        try { if (runtime.liveSub.unsubscribe) runtime.liveSub.unsubscribe(); } catch (_) {}
-      }
-      runtime.liveSub = null;
-      runtime.liveMatchId = '';
-    }
-  };
-
-  function stopRealtime(reason) {
-    if (runtime.pollTimer) { clearTimeout(runtime.pollTimer); runtime.pollTimer = 0; }
-    onlineState().pollTimer = 0;
-    Transport.stopLiveHints();
-    runtime.pollBusy = false;
-    runtime.pollPending = false;
-    log('debug', 'transport.stop', { reason: reason || '' });
+    } catch(_) {}
   }
 
-  const Reconnect = {
-    schedule: function(reason) {
-      if (!isConnected() || !getRoom()) return;
-      if (runtime.reconnectTimer) return;
-      if (Date.now() < runtime.reconnectMutedUntil) return;
-      if (runtime.phase === PHASE.CONNECTING || runtime.phase === PHASE.STARTING) return;
-      if (runtime.locks.connect || runtime.locks.start || runtime.locks.rematch || runtime.locks.disconnect) return;
-      runtime.reconnectTimer = window.setTimeout(async () => {
-        runtime.reconnectTimer = 0;
-        await this.run(reason || 'scheduled');
-      }, 350);
-    },
-    run: async function(reason) {
-      if (!isConnected() || !getRoom()) return false;
-      let peerTs = 0;
-      try { if (typeof _lastPeerRevTs !== 'undefined') peerTs = Number(_lastPeerRevTs || 0); } catch (_) { peerTs = 0; }
-      const staleFor = Date.now() - Math.max(runtime.lastNetOkTs || 0, peerTs || 0);
-      if (reason !== 'manual' && staleFor < 30000 && runtime.pollTimer) {
-        Transport.start('transport-recover');
-        UI.hideReconnectBanner();
-        return true;
-      }
-      return runLocked('reconnect', async () => {
-        transition(PHASE.RECONNECTING, reason || 'reconnect', 'Reconnexion en cours…');
-        UI.showReconnectBanner('Reconnexion au salon ' + (getRoom() || '')); 
-        log('info', 'reconnect.begin', { reason: reason || '' });
-        try {
-          if (typeof window.onlineConnectToRoom_Back4App === 'function') {
-            await window.onlineConnectToRoom_Back4App(getRoom(), false);
-            UI.hideReconnectBanner();
-            return true;
-          }
-        } catch (err) {
-          runtime.lastError = 'Échec de reconnexion : ' + String(err && err.message || err);
-          transition(PHASE.ERROR, 'reconnect-failed', runtime.lastError);
-          log('error', 'reconnect.failed', { err: String(err && err.message || err) });
-        }
-        return false;
-      });
-    },
-    mute: function(ms) {
-      runtime.reconnectMutedUntil = Date.now() + Math.max(0, Number(ms || 0));
-      UI.hideReconnectBanner();
-      log('info', 'reconnect.muted', { until: runtime.reconnectMutedUntil });
-    }
-  };
+  /* ══════════════════════════════════════════════════════════
+     WRAPPERS PRINCIPAUX
+  ══════════════════════════════════════════════════════════ */
 
-  const Rematch = {
-    async setReady(isReady) {
-      return runLocked('rematch', async () => {
-        if (!isConnected() || !isPlayer() || !getMatchId()) return false;
-        if (!(await ensureParseReady())) return false;
-        const token = makeToken('rematch');
-        const role = getRole();
-        const field = role === 1 ? 'rm1' : 'rm2';
-        const matchId = getMatchId();
-        const expectedGameId = Number(runtime.lastGameId || onlineState().gameId || 0);
-        const q = new window.Parse.Query(window.BACK4APP_CLASS);
-        const live = await q.get(matchId);
-        if (!isTokenCurrent(token, true)) return false;
-        const liveStatus = String(live.get('status') || 'waiting');
-        const liveGameId = Number(live.get('gameId') || 0);
-        if (liveStatus !== 'finished' || (expectedGameId > 0 && liveGameId > 0 && liveGameId !== expectedGameId)) {
-          log('warn', 'rematch.reject.stale', { ready: !!isReady, expectedGameId: expectedGameId, liveGameId: liveGameId, liveStatus: liveStatus });
-          await Transport.syncNow('rematch-stale-guard', token);
-          return false;
-        }
-        live.set(field, !!isReady);
-        live.unset('rematch');
-        live.increment('rev', 1);
-        await live.save();
-        log('info', 'rematch.setReady', { role: role, ready: !!isReady, gameId: liveGameId || expectedGameId });
-        if (!isTokenCurrent(token, true)) return false;
-        await Transport.syncNow('rematch-toggle', token);
-        return true;
-      });
-    },
-    async maybeAutoStart(match) {
-      if (!match || !isHost() || !isPlayer()) return false;
-      const status = String(match.get('status') || 'waiting');
-      const rm1 = !!match.get('rm1');
-      const rm2 = !!match.get('rm2');
-      if (status !== 'finished' || !(rm1 && rm2)) return false;
-      const key = [String(match.id || ''), String(Number(match.get('rev') || 0)), String(inferGameId(match, match.get('payload') || null))].join('|');
-      if (runtime.lastAutoStartKey === key) return false;
-      runtime.lastAutoStartKey = key;
-      log('info', 'rematch.autostart', { key: key });
-      // Mettre à jour la bannière : les deux joueurs sont prêts → lancement
-      UI.syncRematchUi(match);
-      try { hideWinnerAnimation(); } catch(_) {}
-      try { showScreen('game-play-area'); } catch(_) {}
-      if (typeof window.onlineStartMatch_Back4App === 'function') {
-        try { await window.onlineStartMatch_Back4App(); } catch(e) {
-          log('warn', 'rematch.autostart.failed', { err: String(e && e.message || e) });
-          runtime.lastAutoStartKey = ''; // permettre retry
-          return false;
-        }
-        return true;
-      }
-      return false;
-    },
-    patchLegacyBanner: function() {
-      // N.B. : syncRematchUi() repose ses propres onclick à chaque poll — patchLegacyBanner
-      // ne sert qu'à court-circuiter l'ancien RematchSystem (TiddasPatch.RematchSystem).
-      const rs = window.TiddasPatch && window.TiddasPatch.RematchSystem;
-      if (!rs || rs.__onlineProdPatched) return;
-      rs.__onlineProdPatched = true;
-      rs.propose = () => this.setReady(true);
-      rs.accept  = () => this.setReady(true);
-      rs.hide    = () => UI.hideRematchBanner();
-      rs.showAfterGame = () => {
-        // Synthétiser un faux match pour déclencher syncRematchUi proprement
-        const fakeMatch = {
-          get: function(k) {
-            if (k === 'status') return 'finished';
-            if (k === 'rm1') return false;
-            if (k === 'rm2') return false;
-            if (k === 'spectatorQueue') return [];
-            return null;
-          }
-        };
-        UI.syncRematchUi(fakeMatch);
-      };
-      // Les boutons de la bannière sont câblés dynamiquement par syncRematchUi() —
-      // on ne pose pas de onclick ici pour éviter la double-écriture.
-    }
-  };
-
-  async function runLocked(name, fn) {
-    if (runtime.locks[name]) {
-      log('debug', 'lock.skip', { name: name });
-      return false;
-    }
-    runtime.locks[name] = true;
-    UI.syncButtons();
-    try {
-      return await fn();
-    } finally {
-      runtime.locks[name] = false;
-      UI.syncButtons();
-    }
-  }
-
-  const base = {
-    disconnect: window.onlineDisconnect,
-    connect: window.onlineConnectToRoom_Back4App,
-    start: window.onlineStartMatch_Back4App,
-    sendState: window.onlineSendState,
-    applyState: window.onlineApplyState
-  };
-
-  if (typeof base.disconnect === 'function') {
+  /* — onlineDisconnect — */
+  const _baseDisconnect = window.onlineDisconnect;
+  if (typeof _baseDisconnect === 'function') {
     window.onlineDisconnect = function() {
-      if (runtime.internalDisconnect) {
-        return base.disconnect.apply(this, arguments);
-      }
-      const snapshot = { matchId: getMatchId(), role: getRole() };
-      if (runtime.reconnectTimer) { clearTimeout(runtime.reconnectTimer); runtime.reconnectTimer = 0; }
-      runtime.reconnectMutedUntil = 0;
-      if (snapshot.matchId && snapshot.role > 0) {
-        Presence.ping(false, 'disconnect');
-      }
-      try {
-        if (window.TiddasPatch && window.TiddasPatch.SeamlessResume && typeof window.TiddasPatch.SeamlessResume.clearSession === 'function') {
-          window.TiddasPatch.SeamlessResume.clearSession();
-        }
-      } catch (_) {}
+      rt.startLock = false;
+      rt.connectLock = false;
+      rt.rematchLock = false;
       beginSession('disconnect');
       transition(PHASE.IDLE, 'disconnect', 'Déconnecté.');
-      UI.clear();
-      Presence.stop('disconnect-local');
-      return base.disconnect.apply(this, arguments);
+      clearSpectatorReadOnly();
+      presenceStop('disconnect');
+      const rcBanner = document.getElementById('online-reconnect-banner');
+      if (rcBanner) rcBanner.hidden = true;
+      return _baseDisconnect.apply(this, arguments);
     };
   }
 
-  if (typeof base.applyState === 'function') {
+  /* — onlineConnectToRoom_Back4App — */
+  const _baseConnect = window.onlineConnectToRoom_Back4App;
+  window._baseOnlineConnect = _baseConnect;
+  if (typeof _baseConnect === 'function') {
+    window.onlineConnectToRoom_Back4App = async function(code, creating) {
+      if (rt.connectLock) { log('debug', 'connect.skip.locked'); return false; }
+      rt.connectLock = true;
+      syncButtons();
+      beginSession(creating ? 'create' : 'join');
+      transition(PHASE.CONNECTING, creating ? 'create' : 'join',
+        creating ? 'Création du salon…' : 'Connexion au salon…');
+      rt.internalDisconnect = true;
+      try {
+        const result = await _baseConnect.apply(this, arguments);
+        rt.internalDisconnect = false;
+        if (!isConnected()) {
+          transition(PHASE.ERROR, 'connect-no-session', 'Connexion incomplète.');
+          return false;
+        }
+        stopTransport('post-connect-rebind');
+        rt.lastNetOkTs = now();
+        if (isSpectator()) transition(PHASE.SPECTATING, 'connect-ok');
+        else transition(PHASE.LOBBY, 'connect-ok');
+        await syncNow('post-connect');
+        startTransport('post-connect');
+        if (isPlayer()) presenceStart();
+        return result;
+      } catch(err) {
+        rt.internalDisconnect = false;
+        rt.lastError = 'Erreur connexion : ' + String(err && err.message || err);
+        transition(PHASE.ERROR, 'connect-failed', rt.lastError);
+        throw err;
+      } finally {
+        rt.internalDisconnect = false;
+        rt.connectLock = false;
+        syncButtons();
+      }
+    };
+  }
+
+  /* — onlineStartMatch_Back4App — CORRECTION CENTRALE — */
+  const _baseStart = window.onlineStartMatch_Back4App;
+  if (typeof _baseStart === 'function') {
+    window.onlineStartMatch_Back4App = async function() {
+      /* Debounce anti-double-clic (300ms) */
+      const ts = now();
+      if (ts - rt.startLastTs < 300) { log('debug', 'start.debounce'); return false; }
+      /* Lock unique — pas d'empilement */
+      if (rt.startLock) { log('debug', 'start.locked'); return false; }
+      rt.startLock = true;
+      rt.startLastTs = ts;
+      syncButtons();
+
+      if (!isConnected() || !isPlayer() || !isHost()) {
+        rt.startLock = false; syncButtons(); return false;
+      }
+
+      transition(PHASE.STARTING, 'start-click', 'Lancement de la partie…');
+      let success = false;
+      try {
+        const result = await _baseStart.apply(this, arguments);
+        /* La bare function retourne true en cas de succès (après notre fix),
+           undefined/false en cas d'échec partiel, throw en cas d'erreur. */
+        success = (result === true);
+      } catch(err) {
+        log('warn', 'start.error', String(err && err.message || err));
+        success = false;
+      } finally {
+        rt.startLock = false;
+      }
+
+      if (success) {
+        /* Post-start : sync immédiat puis redémarrage du polling */
+        await syncNow('post-start');
+        startTransport('post-start');
+        presenceStart();
+        transition(PHASE.PLAYING, 'start-ok');
+      } else {
+        /* Remettre la phase à READY pour débloquer le bouton */
+        if (isConnected()) transition(PHASE.READY, 'start-failed', '');
+        else transition(PHASE.IDLE, 'start-failed-noconn');
+      }
+      syncButtons();
+      return success;
+    };
+  }
+
+  /* — onlineApplyState — dédup + guards de room/gameId — */
+  const _baseApplyState = window.onlineApplyState;
+  window._baseOnlineApplyState = _baseApplyState;
+  if (typeof _baseApplyState === 'function') {
     window.onlineApplyState = function(payload) {
       if (!payload || !payload.state) return;
-      if (payload.room && getRoom() && String(payload.room) !== getRoom()) {
-        log('debug', 'apply.drop.room', { incoming: payload.room, current: getRoom() });
-        return;
+      const payloadRoom = String(payload.room || '');
+      if (payloadRoom && getRoom() && payloadRoom !== getRoom()) {
+        log('debug', 'apply.drop.room', payloadRoom + ' vs ' + getRoom()); return;
       }
-      const inferred = inferGameId(null, payload);
-      if (Number.isFinite(inferred) && inferred < runtime.lastGameId) {
-        log('debug', 'apply.drop.oldGame', { incoming: inferred, current: runtime.lastGameId });
-        return;
+      const gid = inferGameId(payload);
+      if (Number.isFinite(gid) && gid < rt.lastGameId) {
+        log('debug', 'apply.drop.oldGame', gid); return;
       }
-      const incomingRev = Number((((payload.meta && payload.meta.rev != null) ? payload.meta.rev : (payload.rev != null ? payload.rev : onlineState().lastSeenRev)) || 0));
-      const incomingAt = inferMetaAt(payload);
-      const incomingKey = payloadKey(null, payload, incomingRev);
-      const sameGame = Number.isFinite(inferred) && inferred === runtime.lastGameId;
-      if (sameGame && incomingRev < runtime.lastRev) {
-        log('debug', 'apply.drop.oldRev', { incomingRev: incomingRev, currentRev: runtime.lastRev });
-        return;
+      const key = payloadKey(payload, null);
+      if (key && key === rt.lastAppliedKey) {
+        log('debug', 'apply.drop.dup'); return;
       }
-      if (sameGame && incomingRev === runtime.lastRev && incomingAt && incomingAt < runtime.lastMetaAt) {
-        log('debug', 'apply.drop.oldMetaAt', { incomingAt: incomingAt, currentAt: runtime.lastMetaAt });
-        return;
-      }
-      if (incomingKey && incomingKey === runtime.lastPayloadKey) {
-        log('debug', 'apply.drop.duplicate', { key: incomingKey });
-        return;
-      }
-      const result = base.applyState.apply(this, arguments);
-      runtime.lastPayloadKey = incomingKey || runtime.lastPayloadKey;
-      if (Number.isFinite(inferred)) runtime.lastGameId = Math.max(runtime.lastGameId, inferred);
-      runtime.lastRev = Math.max(runtime.lastRev, incomingRev);
-      runtime.lastMetaAt = Math.max(runtime.lastMetaAt, incomingAt);
-      if (isSpectator()) UI.ensureSpectatorReadOnly();
+      const result = _baseApplyState.apply(this, arguments);
+      if (key) rt.lastAppliedKey = key;
+      rt.lastGameId = Math.max(rt.lastGameId, gid);
+      if (isSpectator()) applySpectatorReadOnly();
       return result;
     };
   }
 
-  if (typeof base.sendState === 'function') {
+  /* — onlineSendState — guard minimal sans suppressSend pour 'start' — */
+  const _baseSendState = window.onlineSendState;
+  if (typeof _baseSendState === 'function') {
     window.onlineSendState = function(reason) {
       if (!isConnected() || !isPlayer()) return;
-      if (runtime.phase === PHASE.CONNECTING || runtime.phase === PHASE.RECONNECTING) return;
-      return base.sendState.apply(this, arguments);
+      const critical = (reason === 'start' || reason === 'surrender' || reason === 'sync' || reason === 'rematch');
+      /* Pour les raisons critiques, court-circuiter suppressSend */
+      if (critical) {
+        const prev = onlineState().suppressSend;
+        onlineState().suppressSend = false;
+        try { return _baseSendState.apply(this, arguments); }
+        finally { onlineState().suppressSend = prev; }
+      }
+      if (onlineState().suppressSend) return;
+      if (rt.phase === PHASE.CONNECTING || rt.phase === PHASE.RECONNECTING) return;
+      return _baseSendState.apply(this, arguments);
     };
   }
 
-  if (typeof base.connect === 'function') {
-    window.onlineConnectToRoom_Back4App = async function(code, creating) {
-      return runLocked('connect', async () => {
-        beginSession(creating ? 'create-room' : 'join-room');
-        transition(PHASE.CONNECTING, creating ? 'create' : 'join', creating ? 'Création du salon…' : 'Connexion au salon…');
-        runtime.internalDisconnect = true;
-        const token = makeToken(creating ? 'create' : 'join');
-        try {
-          const result = await base.connect.apply(this, arguments);
-          if (!isTokenCurrent(token)) return false;
-          runtime.internalDisconnect = false;
-          if (!isConnected()) {
-            transition(PHASE.ERROR, 'connect-no-session', 'Connexion incomplète.');
-            return false;
-          }
-          stopRealtime('post-connect-rebind');
-          runtime.lastNetOkTs = Date.now();
-          if (isSpectator()) transition(PHASE.SPECTATING, 'connect-spectator');
-          else transition(PHASE.LOBBY, 'connect-success');
-          await Transport.syncNow('post-connect', token);
-          if (!isTokenCurrent(token, true)) return false;
-          Transport.start('post-connect');
-          if (isPlayer()) Presence.start();
-          try {
-            if (window.TiddasPatch && window.TiddasPatch.SeamlessResume && typeof window.TiddasPatch.SeamlessResume.saveSession === 'function') {
-              window.TiddasPatch.SeamlessResume.saveSession();
-            }
-          } catch (_) {}
-          return result;
-        } catch (err) {
-          runtime.internalDisconnect = false;
-          runtime.lastError = 'Erreur de connexion : ' + String(err && err.message || err);
-          transition(PHASE.ERROR, 'connect-failed', runtime.lastError);
-          log('error', 'connect.failed', { err: String(err && err.message || err), code: String(code || '') });
-          throw err;
-        } finally {
-          runtime.internalDisconnect = false;
-        }
-      });
+  /* — _applyLobbyStateFromMatch — guard assoupli — */
+  const _baseLobby = window._applyLobbyStateFromMatch;
+  window._applyLobbyStateFromMatch_base = _baseLobby;
+  if (typeof _baseLobby === 'function') {
+    window._applyLobbyStateFromMatch = function(match) {
+      if (!match) return;
+      const o = onlineState();
+      /* Autoriser si matchId correspond, même si connected pas encore true */
+      if (o.matchId && match.id && String(match.id) !== String(o.matchId)) return;
+      if (!o.connected && !o.matchId && !o.room) return;
+      return _baseLobby.apply(this, arguments);
     };
   }
 
-  if (typeof base.start === 'function') {
-    window.onlineStartMatch_Back4App = async function() {
-      return runLocked('start', async () => {
-        if (!isConnected() || !isPlayer() || !isHost()) return false;
-        const token = makeToken('start');
-        transition(PHASE.STARTING, 'start-click', 'Lancement de la partie…');
-        const result = await base.start.apply(this, arguments);
-        if (!isTokenCurrent(token, true)) return false;
-        await Transport.syncNow('post-start', token);
-        if (!isTokenCurrent(token, true)) return false;
-        Transport.start('post-start');
-        Presence.start();
-        return result;
-      });
-    };
-  }
+  /* ══════════════════════════════════════════════════════════
+     API PUBLIQUE + LIFECYCLE
+  ══════════════════════════════════════════════════════════ */
 
-  window.onlineSetRematchReady = async function(isReady) {
-    return Rematch.setReady(!!isReady);
-  };
-
+  /* Legacy compat */
   window._startPolling = function() {
     if (!isConnected()) return;
-    Transport.start('legacy-startPolling');
+    startTransport('legacy-startPolling');
+  };
+  window._stopLiveQuery = function() { stopLiveHints(); };
+  window.onlineReconnect = function() { return doReconnect('manual'); };
+  window.onlineSetRematchReady = function(isReady) { return setRematchReady(!!isReady); };
+
+  window.TiddasOnlineProd = {
+    PHASE: PHASE,
+    runtime: rt,
+    syncNow: function() { return syncNow('manual-api'); },
+    reconnect: function() { return doReconnect('manual-api'); },
+    transition: transition,
+    presence: { start: presenceStart, stop: presenceStop },
+    rematch: { setReady: setRematchReady }
   };
 
-  window._stopLiveQuery = function() {
-    stopRealtime('legacy-stopLiveQuery');
-  };
-
-  window.onlineReconnect = function() {
-    return Reconnect.run('manual');
-  };
-
-  function patchPresenceHooks() {
-    try {
-      if (window.TiddasPatch && window.TiddasPatch.Heartbeat) {
-        window.TiddasPatch.Heartbeat.start = function() { Presence.start(); };
-        window.TiddasPatch.Heartbeat.stop = function() { Presence.stop(); };
-      }
-    } catch (_) {}
+  /* Patcher legacy RematchSystem si présent */
+  function patchLegacyRematch() {
+    const rs = window.TiddasPatch && window.TiddasPatch.RematchSystem;
+    if (!rs || rs.__unifiedPatched) return;
+    rs.__unifiedPatched = true;
+    rs.propose = function() { return setRematchReady(true); };
+    rs.accept  = function() { return setRematchReady(true); };
+    rs.hide    = function() {
+      const b = document.getElementById('tpatch-rematch-banner');
+      if (b) b.classList.remove('visible');
+    };
+    rs.showAfterGame = function() {
+      syncRematchUi({ get: function(k) {
+        if (k === 'status') return 'finished';
+        if (k === 'rm1' || k === 'rm2' || k === 'spectatorQueue') return (k === 'spectatorQueue' ? [] : false);
+        return null;
+      }});
+    };
   }
 
-  function patchResumeHooks() {
-    try {
-      const sr = window.TiddasPatch && window.TiddasPatch.SeamlessResume;
-      if (!sr || sr.__onlineProdPatched) return;
-      sr.__onlineProdPatched = true;
-      const baseAttempt = sr.attemptAutoResume;
-      if (typeof baseAttempt === 'function') {
-        sr.attemptAutoResume = async function() {
-          beginSession('auto-resume');
-          transition(PHASE.RECONNECTING, 'auto-resume', 'Reconnexion à la partie en cours…');
-          const ok = await baseAttempt.apply(this, arguments);
-          if (ok && isConnected()) {
-            stopRealtime('auto-resume-rebind');
-            await Transport.syncNow('auto-resume');
-            if (isConnected()) Transport.start('auto-resume');
-          } else if (!isConnected()) {
-            transition(PHASE.IDLE, 'auto-resume-empty');
-            UI.hideReconnectBanner();
-          }
-          return ok;
-        };
-      }
-    } catch (err) {
-      log('warn', 'resume.patch.failed', { err: String(err && err.message || err) });
-    }
-  }
-
+  /* Patcher les boutons reconnexion */
   function patchReconnectButtons() {
-    const ogbReconn = document.getElementById('ogb-reconnect');
-    if (ogbReconn) ogbReconn.onclick = () => { Reconnect.run('manual-button'); };
-    const cancelBtn = document.getElementById('online-reconnect-cancel');
-    if (cancelBtn) cancelBtn.onclick = () => { Reconnect.mute(60000); };
+    const btn = document.getElementById('ogb-reconnect');
+    if (btn) btn.onclick = function() { doReconnect('manual-button'); };
+    const cancel = document.getElementById('online-reconnect-cancel');
+    if (cancel) cancel.onclick = function() {
+      rt.reconnectMutedUntil = now() + 60000;
+      const b = document.getElementById('online-reconnect-banner');
+      if (b) b.hidden = true;
+    };
   }
 
-  function patchLifecycle() {
-    window.addEventListener('online', () => { Reconnect.schedule('browser-online'); }, { passive: true });
-    window.addEventListener('pageshow', () => {
-      if (isConnected() && !runtime.pollTimer) Transport.start('pageshow');
-      if (isConnected()) Reconnect.schedule('pageshow');
-    }, { passive: true });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) return;
-      if (isConnected() && !runtime.pollTimer) Transport.start('visible');
-      Reconnect.schedule('visible');
-    }, { passive: true });
-    window.addEventListener('beforeunload', () => {
-      if (isConnected() && isPlayer()) Presence.ping(false, 'beforeunload');
-    });
-  }
+  /* Lifecycle */
+  window.addEventListener('online', function() { scheduleReconnect('browser-online'); }, { passive: true });
+  window.addEventListener('pageshow', function() {
+    if (isConnected() && !rt.pollTimer) startTransport('pageshow');
+    if (isConnected()) scheduleReconnect('pageshow');
+  }, { passive: true });
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) return;
+    if (isConnected() && !rt.pollTimer) startTransport('visible');
+    scheduleReconnect('visible');
+  }, { passive: true });
+  window.addEventListener('beforeunload', function() {
+    if (isConnected() && isPlayer()) presencePing(false, 'beforeunload');
+  });
 
+  /* Styles */
   function installStyles() {
-    if (document.getElementById('tiddas-online-prod-v2-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'tiddas-online-prod-v2-styles';
-    style.setAttribute('nonce', 'tiddas');
-    style.textContent = [
-      '#online-status[data-ol-phase="reconnecting"]{border-color:rgba(99,164,255,0.65)!important;box-shadow:0 0 0 1px rgba(99,164,255,0.2),inset 0 0 15px rgba(0,0,0,0.45)!important}',
-      '#online-status[data-ol-phase="error"]{border-color:rgba(255,77,77,0.85)!important;box-shadow:0 0 0 1px rgba(255,77,77,0.25),inset 0 0 15px rgba(0,0,0,0.45)!important}',
-      '#online-status[data-ol-phase="playing"],#online-status[data-ol-phase="ready"]{border-color:rgba(240,200,80,0.65)!important}',
-      '#tpatch-rematch-request-btn.ol-ready{box-shadow:0 0 0 2px rgba(240,200,80,0.35) inset}',
+    if (document.getElementById('tiddas-online-unified-styles')) return;
+    const st = document.createElement('style');
+    st.id = 'tiddas-online-unified-styles';
+    st.setAttribute('nonce', 'tiddas');
+    st.textContent = [
+      '#online-status[data-ol-phase="reconnecting"]{border-color:rgba(99,164,255,.65)!important}',
+      '#online-status[data-ol-phase="error"]{border-color:rgba(255,77,77,.85)!important}',
+      '#online-status[data-ol-phase="playing"],#online-status[data-ol-phase="ready"]{border-color:rgba(240,200,80,.65)!important}',
+      '#tpatch-rematch-request-btn.ol-ready{box-shadow:0 0 0 2px rgba(240,200,80,.35) inset}',
+      '.is-busy{opacity:.72;pointer-events:none;filter:saturate(.85)}',
+      'button[aria-busy="true"]{cursor:progress!important}',
       '#online-reconnect-banner{backdrop-filter:blur(6px)}'
     ].join('');
-    document.head.appendChild(style);
-  }
-
-  function installPublicApi() {
-    window.TiddasOnlineProd = {
-      PHASE: PHASE,
-      runtime: runtime,
-      dumpLogs: function() { return runtime.logs.slice(); },
-      clearLogs: function() { runtime.logs.length = 0; },
-      syncNow: function() { return Transport.syncNow('manual-api'); },
-      reconnect: function() { return Reconnect.run('manual-api'); },
-      transition: transition,
-      beginSession: beginSession,
-      presence: Presence,
-      rematch: Rematch
-    };
+    document.head.appendChild(st);
   }
 
   function install() {
     installStyles();
-    patchPresenceHooks();
-    patchResumeHooks();
+    patchLegacyRematch();
     patchReconnectButtons();
-    patchLifecycle();
-    Rematch.patchLegacyBanner();
-    installPublicApi();
-    UI.syncButtons();
-    if (isConnected()) {
-      Transport.start('install-recover');
-    }
-    log('info', 'install.complete', { sessionSeq: runtime.sessionSeq });
+    syncButtons();
+    if (isConnected()) startTransport('install-recover');
+    log('info', 'unified-module.installed', { seq: rt.sessionSeq });
   }
 
   if (document.readyState === 'loading') {
@@ -35102,8 +34239,8 @@ window.TiddasSpectator       = SpectatorEnhanced;
     install();
   }
 })();
-
 </script>
+
 <style nonce="tiddas">
 #ol-tourn-stats{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
 #ol-tourn-stats:empty{display:none}
