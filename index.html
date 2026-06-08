@@ -16065,8 +16065,8 @@ const ONLINE_ENABLED = true;
 // ── Back4App (Online Multiplayer) ─────────────────────────
 // Obtenir ces clés dans Back4App → App Settings → Security & Keys
 // NE PAS mettre la Master Key ici.
-const BACK4APP_APP_ID     = "ibnsc3EeIJweYFLfgMtAX6NgUIM7iTdmd5R6tW1h"; // ← remplacer
-const BACK4APP_JS_KEY     = "RDS0qiIHIHT1EWGt7Prvf9cwZT4z968vjpl4Vw5y"; // ← remplacer (JS Key)
+const BACK4APP_APP_ID     = "Pkf64X0N0DxDSQDBp9pU5IwzxeaADoCxX7voILxt"; // ← remplacer
+const BACK4APP_JS_KEY     = "wT4UINIT0GzZHo9O7SmKEsbkSh1gTxMMwPwNdjcR"; // ← remplacer (JS Key)
 const BACK4APP_SERVER_URL = "https://parseapi.back4app.com";              // URL API par défaut
 const BACK4APP_CLASS      = "GameMatch"; // Nom de la class/table Back4App
 window.BACK4APP_CLASS = BACK4APP_CLASS;
@@ -19927,13 +19927,16 @@ function td_updateStatus() {
 }
 
 // IA pour les dames Kabyle
-// ── Damma IA : évaluation statique d'un plateau ─────────────────────────────
 // ── Damma IA : évaluation statique ─────────────────────────────────────────
 // En mode normal   : avoir plus de pions/dames est bon.
 // En mode inversé  : avoir MOINS de pions est bon ; les dames sont pénalisées
 //                    car elles sont très difficiles à faire capturer.
+// Expert niv.4     : détection de menaces immédiates, mobilité renforcée.
 function td_evalBoard(board, kings, player, isInverse) {
   let score = 0;
+  const E = (aiDifficulty >= 4) ? 1.8 : 1.0;
+  const opp = 3 - player;
+
   for (let i = 0; i < SIZE * SIZE; i++) {
     const v = board[i];
     if (!v) continue;
@@ -19941,44 +19944,48 @@ function td_evalBoard(board, kings, player, isInverse) {
     const row = Math.floor(i / SIZE);
     const col = i % SIZE;
     if (!isInverse) {
-      // Mode normal : matériel + avancement + mobilité des dames
-      const pieceVal = isKing ? 300 : 100;
+      const pieceVal = isKing ? 350 : 120;
       const advancement = (v === 1) ? (SIZE - 1 - row) : row;
       let posBonus = 0;
       if (isKing) {
-        // Bonus mobilité dame : compter les cases qu'elle peut atteindre
         let mobility = 0;
         for (const [dr, dc] of [[-1,-1],[-1,1],[1,-1],[1,1],[-1,0],[1,0],[0,-1],[0,1]]) {
           const nr = row + dr, nc = col + dc;
           if (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && board[nr * SIZE + nc] === null) mobility++;
         }
-        posBonus += mobility * 8;
-        // Dame centrale = forte
-        if (col >= 1 && col <= 3 && row >= 1 && row <= 3) posBonus += 20;
+        posBonus += mobility * 10;
+        if (col >= 1 && col <= 3 && row >= 1 && row <= 3) posBonus += 25;
       } else {
-        // Pion : bonus centre colonne
-        if (col >= 1 && col <= 3) posBonus += 5;
+        if (col >= 1 && col <= 3) posBonus += 8;
+        if (advancement >= SIZE - 2) posBonus += 30;
       }
-      score += (v === player ? 1 : -1) * (pieceVal + advancement * 5 + posBonus);
+      score += (v === player ? 1 : -1) * (pieceVal + advancement * 7 + posBonus) * E;
     } else {
-      // Mode inversé : pénaliser d'avoir ses propres pions
-      // Dame = très difficile à éliminer → très mauvaise (grande pénalité)
-      const pieceVal = isKing ? -350 : -100;
-      // Pion en colonne centrale = plus exposé aux captures = légèrement bon
-      const exposure = (col >= 1 && col <= 3) ? 15 : 0;
-      if (v === player) score += pieceVal + exposure;
-      // Pénaliser aussi légèrement les pions adverses restants
-      // (moins l'adversaire en a, moins il peut nous capturer)
-      else score += 20;
+      const pieceVal = isKing ? -400 : -120;
+      const exposure = (col >= 1 && col <= 3) ? 18 : 0;
+      if (v === player) score += (pieceVal + exposure) * E;
+      else score += 22;
     }
   }
-  // Mode inversé endgame : bonus si on est proche du blocage (peu de mouvements disponibles)
+
+  if (!isInverse && aiDifficulty >= 4) {
+    // Expert : menaces de capture immédiates — sans appel récursif
+    const oppCaps = td_getAllPlayerCaptures(board, kings, opp);
+    for (const cap of oppCaps) {
+      for (const ci of cap.captured) score -= (kings && kings[ci] ? 90 : 40);
+    }
+    const myCaps = td_getAllPlayerCaptures(board, kings, player);
+    for (const cap of myCaps) {
+      for (const ci of cap.captured) score += (kings && kings[ci] ? 70 : 30);
+    }
+  }
+
   if (isInverse) {
     const myMoves = td_getAllSimpleMoves(board, kings, player);
     const myCaps  = td_getAllPlayerCaptures(board, kings, player);
     const totalOptions = myMoves.length + myCaps.length;
-    if (totalOptions <= 2) score += (3 - totalOptions) * 80; // presque bloqué = excellent
-    if (totalOptions === 0) score += 5000; // bloqué = victoire
+    if (totalOptions <= 2) score += (3 - totalOptions) * 80;
+    if (totalOptions === 0) score += 5000;
   }
   return score;
 }
@@ -20069,11 +20076,13 @@ function td_minimax(board, kings, player, depth, alpha, beta, maximizing, rootPl
 function td_scoreCaptureForAI(capturePath, board, kings, player, isInverse) {
   const nb = [...board]; const nk = Object.assign({}, kings);
   let score = 0;
+  // Expert niv.4 : poids renforcés
+  const E = (aiDifficulty >= 4) ? 1.7 : 1.0;
 
   for (const ci of capturePath.captured) {
     if (!isInverse) {
-      // Mode normal : capturer une dame vaut plus
-      score += !!(nk[ci]) ? 400 : 200;
+      // Capturer une dame vaut beaucoup plus — Expert encore plus
+      score += (!!(nk[ci]) ? 480 : 220) * E;
     }
     nb[ci] = null; delete nk[ci];
   }
@@ -20086,35 +20095,33 @@ function td_scoreCaptureForAI(capturePath, board, kings, player, isInverse) {
 
   if (!isInverse) {
     // Mode normal : bonus promotion, pénalité contre-captures adverses
-    if (willPromote) score += 250;
+    if (willPromote) score += 280 * E;
     const oppCounter = td_getAllPlayerCaptures(nb, nk, 3 - player);
-    score -= oppCounter.reduce((s, p) => s + p.captured.length, 0) * 80;
+    // Pénalité : si l'adversaire peut recapturer une de nos dames, c'est grave
+    for (const p of oppCounter) {
+      for (const ci of p.captured) {
+        score -= (nk[ci] ? 160 : 80) * E;
+      }
+    }
   } else {
     // Mode inversé : on VEUT être capturé après ce coup
-    // → Maximiser les captures adverses disponibles sur notre position finale
     const oppCounter = td_getAllPlayerCaptures(nb, nk, 3 - player);
     score += oppCounter.reduce((s, p) => s + p.captured.length, 0) * 120;
-    // Pénaliser la promotion (dame très difficile à faire capturer)
     if (willPromote) score -= 500;
-    // Bonus si la destination est une case centrale (plus exposée aux captures)
     const col = dest % SIZE;
     if (col >= 1 && col <= 3) score += 30;
-    // Bonus pour réduire notre propre nombre de pions rapidement
     const myPiecesLeft = nb.filter(v => v === player).length;
     score += (5 - myPiecesLeft) * 40;
-    // ── Niv.4 : SACRIFICE DE DAME VOLONTAIRE ──────────────────────────────
-    // Si on a une dame ET que l'adversaire peut la capturer après ce coup = très bon
-    // Une dame sacrifiée volontairement = victoire quasi-certaine (une pièce en moins)
+    // Sacrifice de dame volontaire
     const myKingsLeft = Object.keys(nk).filter(k => nb[parseInt(k)] === player).length;
     if (myKingsLeft > 0) {
-      // Chercher si l'adversaire peut capturer une de nos dames
       let kingCapturableCount = 0;
       for (const oppCap of oppCounter) {
         for (const ci of oppCap.captured) {
           if (nk[ci] && nb[ci] === player) kingCapturableCount++;
         }
       }
-      score += kingCapturableCount * 300; // grande récompense si dame capturable
+      score += kingCapturableCount * 300;
     }
   }
 
@@ -20132,30 +20139,36 @@ function td_makeAiMove() {
   // Les 3 premiers coups stratégiques : colonnes centrales + cases mobiles.
   if (!isInverse && aiDifficulty === 4 && state.phase === 'move') {
     const totalMoves = (session.moves || 0);
-    if (totalMoves < 3) {
+    if (totalMoves < 5) {
       // Identifier les pions du joueur sur le plateau
       const myPieces = [];
       for (let i = 0; i < SIZE * SIZE; i++) {
         if (state.board[i] === player) myPieces.push(i);
       }
-      // Priorité : avancer les pions des colonnes centrales (col 1,2,3)
-      // vers des cases qui maximisent les futures captures
+      // Book Expert : colonnes centrales, avancement, menaces futures, sécurité
       let bookMove = null; let bookScore = -Infinity;
       for (const from of myPieces) {
         for (const to of td_getSimpleMoves(state.board, state.kings, from, player)) {
           const col = to % SIZE;
           const row = Math.floor(to / SIZE);
-          let bs = 0;
-          if (col >= 1 && col <= 3) bs += 20; // colonnes centrales
-          if (player === 1 && row <= 1) bs += 15; // J1 avance
-          if (player === 2 && row >= 3) bs += 15; // J2 avance
-          // Bonus : depuis une case de bord vers le centre
           const fromCol = from % SIZE;
-          if ((fromCol === 0 || fromCol === 4) && col >= 1 && col <= 3) bs += 10;
+          let bs = 0;
+          if (col >= 1 && col <= 3) bs += 22;           // colonnes centrales
+          if (col === 2) bs += 10;                        // colonne médiane = meilleure
+          if (player === 1 && row <= 1) bs += 18;         // J1 avance
+          if (player === 2 && row >= 3) bs += 18;         // J2 avance
+          if ((fromCol === 0 || fromCol === 4) && col >= 1 && col <= 3) bs += 12; // du bord vers centre
           const nb = [...state.board]; nb[to] = player; nb[from] = null;
           const nk = Object.assign({}, state.kings); if(nk[from]){nk[to]=true;delete nk[from];}
+          // Menaces créées par ce coup
           const futureCaps = td_getAllPlayerCaptures(nb, nk, player);
-          bs += futureCaps.length * 25;
+          bs += futureCaps.length * 30;
+          bs += futureCaps.reduce((s, c) => s + c.captured.length, 0) * 12;
+          // Sécurité : pénalité si l'adversaire peut capturer notre pièce après ce coup
+          const oppCaps = td_getAllPlayerCaptures(nb, nk, 3 - player);
+          for (const c of oppCaps) {
+            if (c.captured.includes(to)) bs -= 25;
+          }
           if (bs > bookScore) { bookScore = bs; bookMove = { from, to }; }
         }
       }
@@ -20205,7 +20218,8 @@ function td_makeAiMove() {
 
   // Profondeur minimax selon le niveau de difficulté
   // Mode inversé : profondeur +1 car chaque capture obligatoire change drastiquement la position
-  const _baseDepth = aiDifficulty >= 4 ? 3 : aiDifficulty >= 3 ? 2 : aiDifficulty >= 2 ? 2 : 0;
+  // Expert niv.4 : profondeur 5 (branchement ~10, alpha-bêta → rapide et très fort)
+  const _baseDepth = aiDifficulty >= 4 ? 5 : aiDifficulty >= 3 ? 3 : aiDifficulty >= 2 ? 2 : 0;
   const mmDepth = isInverse && _baseDepth > 0 ? _baseDepth + 1 : _baseDepth;
 
   for (const mv of moves) {
@@ -21603,6 +21617,116 @@ inner_ring: [6,
 18],
 };
 
+// ── Chaleur de chaque cellule = nb de lignes de moulin (3 consécutifs) auxquelles elle participe ──
+// Calculée statiquement pour un plateau 5×5 (lignes H et V de longueur exactement 3).
+// Plus la valeur est élevée, plus la case est stratégique.
+//
+//  idx: 0  1  2  3  4
+//       5  6  7  8  9
+//      10 11 12 13 14
+//      15 16 17 18 19
+//      20 21 22 23 24
+//
+//  heat: 2  3  4  3  2
+//        2  3  4  3  2
+//        3  4  5  4  3   ← ligne médiane
+//        3  4  5  4  3
+//        2  3  4  3  2
+const CELL_HEAT = [
+  2,3,4,3,2,
+  2,3,4,3,2,
+  3,4,5,4,3,
+  3,4,5,4,3,
+  2,3,4,3,2
+];
+
+// ── Toutes les lignes de moulin possibles (3 cellules consécutives H ou V) ──
+const ALL_MILL_LINES = (() => {
+  const lines = [];
+  for (let r = 0; r < SIZE; r++)
+    for (let c = 0; c <= SIZE - 3; c++)
+      lines.push([r*SIZE+c, r*SIZE+c+1, r*SIZE+c+2]);
+  for (let c = 0; c < SIZE; c++)
+    for (let r = 0; r <= SIZE - 3; r++)
+      lines.push([r*SIZE+c, (r+1)*SIZE+c, (r+2)*SIZE+c]);
+  return lines;
+})();
+
+// ── Score rapide d'un coup de placement (sans simulation complète) ──────────
+// Utilisé pour ordonner les coups avant minimax — améliore l'élagage alpha-bêta.
+// Ne compte QUE les signaux "légers" (pas de countDoubleMillSetups, trop coûteux en interne).
+function scorePlacementMove(board, to, player) {
+  const opp = 3 - player;
+  let score = 0;
+
+  // Valeur de base : chaleur de la cellule
+  score += (CELL_HEAT[to] || 0) * 12;
+
+  // Analyser les lignes qui passent par `to`
+  for (const line of ALL_MILL_LINES) {
+    if (!line.includes(to)) continue;
+    let myCount = 0, oppCount = 0, emptyCount = 0;
+    for (const idx of line) {
+      if (idx === to) { myCount++; continue; }
+      if (board[idx] === player) myCount++;
+      else if (board[idx] === opp) oppCount++;
+      else emptyCount++;
+    }
+    // Après placement de notre pièce sur `to` : myCount = nb nos pièces dans cette ligne
+    if (oppCount === 0) {
+      // Ligne sans adversaire
+      if (myCount === 2) score += 60;  // potentiel moulin (2 + vide)
+      else if (myCount === 1) score += 15; // début de construction
+    } else if (oppCount === 2 && myCount === 1) {
+      // On bloque un moulin adverse presque complet : priorité absolue
+      score += 220;
+    } else if (oppCount === 1 && myCount === 1) {
+      // On réduit leur potentiel
+      score += 8;
+    }
+  }
+
+  // Pénalité si la cellule est isolée (pas d'alliés à distance 1)
+  const row = Math.floor(to / SIZE), col = to % SIZE;
+  let allies = 0;
+  for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const nr = row+dr, nc = col+dc;
+    if (nr>=0 && nr<SIZE && nc>=0 && nc<SIZE && board[nr*SIZE+nc] === player) allies++;
+  }
+  if (allies === 0) score -= 5;
+
+  return score;
+}
+
+// ── Score COMPLET d'un coup de placement (avec simulations) ─────────────────
+// Utilisé uniquement au niveau racine (aiFindBestMove) — trop coûteux en interne.
+function scorePlacementMoveDeep(board, to, player) {
+  const opp = 3 - player;
+  const nb = [...board];
+  nb[to] = player;
+
+  let score = scorePlacementMove(board, to, player); // base rapide
+
+  // Fork : 2 moulins potentiels créés simultanément = coup décisif
+  const myForkAfter  = countDoubleMillSetups(nb, player);
+  const oppForkBefore = countDoubleMillSetups(board, opp);
+  const oppForkAfter  = countDoubleMillSetups(nb, opp);
+
+  score += myForkAfter * 320;
+  score += (oppForkBefore - oppForkAfter) * 280; // bloquer un fork adverse
+
+  // Potentiel de moulin gagné / perdu
+  const myPotBefore  = getPotentialMillsCount(board, player);
+  const myPotAfter   = getPotentialMillsCount(nb, player);
+  const oppPotBefore = getPotentialMillsCount(board, opp);
+  const oppPotAfter  = getPotentialMillsCount(nb, opp);
+
+  score += (myPotAfter - myPotBefore) * 70;
+  score += (oppPotBefore - oppPotAfter) * 55;
+
+  return score;
+}
+
 
 
 function isInInnerRing(idx) {
@@ -21644,50 +21768,58 @@ const opponentPotentialMills = getPotentialMillsCount(board, opponent);
 const playerDoubleMills = countDoubleMillSetups(board, playerToEvaluate);
 const opponentDoubleMills = countDoubleMillSetups(board, opponent);
 
+// ── Facteur multiplicateur Expert (niv.4) ──
+// L'IA perçoit les menaces et opportunités avec une clarté bien plus grande.
+const E = (aiDifficulty >= 4) ? 2.2 : 1.0;
+
 if (!cfg().isInverseWin) {
 // --- NORMAL WIN LOGIC ---
-score += playerDoubleMills * 600;
-score -= opponentDoubleMills * 700;
-score += playerPotentialMills * 40;
-score -= opponentPotentialMills * 50;
+
+// Double-moulin = fork = presque gagné : poids massif en Expert
+score += playerDoubleMills * 600 * E;
+score -= opponentDoubleMills * 700 * E;   // bloquer les forks adverses est impératif
+
+// Moulins potentiels (une pièce de plus = moulin)
+score += playerPotentialMills * 40 * E;
+score -= opponentPotentialMills * 50 * E;
+
+// Expert niv.4 : pénalité si l'adversaire peut former un moulin au PROCHAIN coup
+// (menace non encore comptée dans potentialMills mais immédiate)
+if (aiDifficulty >= 4) {
+  const oppImmediateMill = canPlayerFormMillNextTurn(opponent, board, 'placement');
+  const myImmediateMill  = canPlayerFormMillNextTurn(playerToEvaluate, board, 'placement');
+  if (oppImmediateMill) score -= 1800; // urgence maximale : bloquer
+  if (myImmediateMill)  score += 1200; // on peut former un moulin au prochain coup
+}
 
 board.forEach((cell, idx) => {
 if (cell === playerToEvaluate) {
-if (STRATEGIC_CELLS.center.includes(idx)) score += 40;
-if (STRATEGIC_CELLS.inner_corners.includes(idx)) score += 25;
-if (STRATEGIC_CELLS.edge_centers.includes(idx)) score += 15;
+if (STRATEGIC_CELLS.center.includes(idx)) score += 40 * E;
+if (STRATEGIC_CELLS.inner_corners.includes(idx)) score += 25 * E;
+if (STRATEGIC_CELLS.edge_centers.includes(idx)) score += 15 * E;
 } else if (cell === opponent) {
-if (STRATEGIC_CELLS.center.includes(idx)) score -= 40;
-if (STRATEGIC_CELLS.inner_corners.includes(idx)) score -= 25;
+if (STRATEGIC_CELLS.center.includes(idx)) score -= 40 * E;
+if (STRATEGIC_CELLS.inner_corners.includes(idx)) score -= 25 * E;
 }
 });
 
 } else {
 // --- INVERSE WIN LOGIC (Učči Bessif) ---
-// Higher score = safer for inverse objective:
-// - avoid opening mills / double threats
-// - avoid the center / inner ring
-// - avoid clustering (including diagonals and distance-2)
 score -= playerPotentialMills * 650;
 score -= playerDoubleMills * 2600;
 
-// It's generally helpful (for losing pieces later) if the opponent has more mill potential.
 score += opponentPotentialMills * 90;
 score += opponentDoubleMills * 650;
 
 board.forEach((cell, idx) => {
 if (cell === playerToEvaluate) {
-// Strong avoidance of the center / inner ring.
 if (isCenterCell(idx)) score -= 2200;
 else if (isInInnerRing(idx)) score -= 1400;
 
-// Avoid aggregation of own pieces (distance 1 & 2, incl. diagonals).
 const aggSelf = getAggregationMetrics(board, idx, playerToEvaluate);
 score -= aggSelf.adj1 * 950;
 score -= aggSelf.adj2 * 420;
 
-// Slight bonus if close to opponent pieces (easier to be captured later),
-// but much smaller than the anti-aggregation penalty.
 const aggOpp = getAggregationMetrics(board, idx, opponent);
 score += aggOpp.adj1 * 80;
 }
@@ -21913,9 +22045,14 @@ const opponentPieces = board.filter(p => p === opponent).length;
 const playerMoves = countPlayerMoves(playerToEvaluate, board, currentPhase);
 const opponentMoves = countPlayerMoves(opponent, board, currentPhase);
 
+// ── Expert niv.4 : amplification de tous les signaux ──
+const E = (aiDifficulty >= 4) ? 1.8 : 1.0;
+
 let score = 0;
-score += (playerPieces - opponentPieces) * 200;
-score += (playerMoves - opponentMoves) * 60;
+// Avantage matériel — multiplié par la rareté des pièces en endgame
+const matMult = currentPhase === 'move' ? Math.max(1, 7 - Math.min(playerPieces, opponentPieces)) * 0.35 : 1;
+score += (playerPieces - opponentPieces) * 200 * matMult * E;
+score += (playerMoves - opponentMoves) * 60 * E;
 
 const playerMills = getFormedMillsCount(board, playerToEvaluate);
 const opponentMills = getFormedMillsCount(board, opponent);
@@ -21923,20 +22060,21 @@ const opponentMills = getFormedMillsCount(board, opponent);
 // l'IA ne doit pas être pénalisée pour déplacer un pion qui en fait partie.
 // On réduit fortement le poids des moulins existants en phase move pour éviter ce biais.
 const millWeight = (currentPhase === 'move') ? 30 : 150;
-score += (playerMills - opponentMills) * millWeight;
+score += (playerMills - opponentMills) * millWeight * E;
 
 const playerPotentialMills = getPotentialMillsCount(board, playerToEvaluate);
 const opponentPotentialMills = getPotentialMillsCount(board, opponent);
 // En phase move, on booste davantage les moulins potentiels pour compenser
 const potentialMillWeight = (currentPhase === 'move') ? 120 : 75;
-score += (playerPotentialMills - opponentPotentialMills) * potentialMillWeight;
+score += (playerPotentialMills - opponentPotentialMills) * potentialMillWeight * E;
 
 const playerDoubleMills = countDoubleMillSetups(board, playerToEvaluate);
 const opponentDoubleMills = countDoubleMillSetups(board, opponent);
-score += (playerDoubleMills - opponentDoubleMills) * 5000;
+// Double moulin = fork décisif : poids très élevé, amplifié en Expert
+score += (playerDoubleMills - opponentDoubleMills) * 5000 * E;
 
-if (canPlayerFormMillNextTurn(opponent, board, currentPhase)) score -= 1000;
-if (canPlayerFormMillNextTurn(playerToEvaluate, board, currentPhase)) score += 900;
+if (canPlayerFormMillNextTurn(opponent, board, currentPhase)) score -= 1000 * E;
+if (canPlayerFormMillNextTurn(playerToEvaluate, board, currentPhase)) score += 900 * E;
 
 if (cfg().isInverseWin) {
 // In inverse mode, fewer pieces and fewer moves are GOOD for AI => invert the "normal" score.
@@ -22087,12 +22225,27 @@ return leafVal;
 }
 
 const opponentPlayer = 3 - currentPlayer;
-const possibleMoves = generateAllPossibleMoves(currentPlayer, currentBoard, currentPhase);
+let possibleMoves = generateAllPossibleMoves(currentPlayer, currentBoard, currentPhase);
 if (possibleMoves.length === 0) {
 const noMoveVal = (currentPhase === 'placement')
 ? evaluatePlacement(currentBoard, aiPlayerId): evaluateBoard(currentBoard, aiPlayerId, opponentPlayer, currentPhase);
 __MINIMAX_TT.set(ttKey, noMoveVal);
 return noMoveVal;
+}
+
+// ── Tri des coups pour améliorer l'élagage alpha-bêta ──────────────────────
+// En placement : scorePlacementMove (léger, sans simulation complète).
+// En déplacement : moulins d'abord, puis blocage, puis reste.
+if (currentPhase === 'placement') {
+  // Trier par score rapide (CELL_HEAT + analyse des lignes)
+  // Le tri maximisant → les meilleurs coups en tête → coupures bêta dès le début
+  possibleMoves = possibleMoves.slice().sort((a, b) =>
+    scorePlacementMove(currentBoard, b.to, currentPlayer) -
+    scorePlacementMove(currentBoard, a.to, currentPlayer)
+  );
+} else {
+  // Déplacement : ordonner via la version déjà existante
+  possibleMoves = generateAllPossibleMovesOrdered(currentPlayer, currentBoard, currentPhase);
 }
 
 let bestEval = isMaximizingPlayer ? -Infinity: Infinity;
@@ -22267,44 +22420,91 @@ if (a[i] > b[i]) return 1;
 return 0;
 };
 
-// This hardcoded opening is only for the NORMAL win variant.
+// ── Opening book : placement Tiddest classique (mode normal uniquement) ──────
+// Priorité 1 : bloquer un fork adverse immédiat (menace double moulin)
+// Priorité 2 : créer notre propre fork
+// Priorité 3 : ouverture stratégique basée sur CELL_HEAT
 if (!isInverse && aiDifficulty >= 3 && currentPhase === 'placement') {
 const turnNumber = state.board.filter(p => p !== null).length;
-// Coup 1-2 : occuper le centre (case 12) — pièce la plus forte au placement
+
+// ── Urgence : bloquer fork adverse ou compléter le nôtre (tous niveaux, tout moment) ──
+const urgentMoves = generateAllPossibleMoves(player, state.board, currentPhase);
+if (urgentMoves.length > 0) {
+  // Fork adverse immédiat → bloquer en priorité absolue
+  const oppForkNow = countDoubleMillSetups(state.board, opponent);
+  if (oppForkNow > 0) {
+    let bestBlock = null, bestBlockScore = -Infinity;
+    for (const m of urgentMoves) {
+      const nb = simulateMove(state.board, m, player);
+      const oppForkAfter = countDoubleMillSetups(nb, opponent);
+      if (oppForkAfter < oppForkNow) {
+        const bs = scorePlacementMoveDeep(state.board, m.to, player) + (oppForkNow - oppForkAfter) * 500;
+        if (bs > bestBlockScore) { bestBlockScore = bs; bestBlock = m; }
+      }
+    }
+    if (bestBlock) return bestBlock;
+  }
+
+  // On peut créer un fork → le faire
+  let bestForkMove = null, bestForkScore = -Infinity;
+  for (const m of urgentMoves) {
+    const nb = simulateMove(state.board, m, player);
+    const myFork = countDoubleMillSetups(nb, player);
+    if (myFork > 0) {
+      const fs = myFork * 400 + scorePlacementMoveDeep(state.board, m.to, player);
+      if (fs > bestForkScore) { bestForkScore = fs; bestForkMove = m; }
+    }
+  }
+  if (bestForkMove) return bestForkMove;
+}
+
+// ── Ouverture stratégique (premiers coups) ────────────────────────────────
+// Tour 1-2 : centre (case 12, CELL_HEAT=5 — maximum absolu)
 if (turnNumber < 2 && state.board[12] === null) { return { to: 12 }; }
+
 if (aiDifficulty === 4) {
-// Niv.4 : ouverture étendue — centre + coins intérieurs + bords stratégiques
-if (turnNumber < 4 && state.board[12] === aiPlayerId) {
-// Coup 2 : coin intérieur adjacent au centre
-const preferredCorners = [6, 8, 16, 18];
-for (const corner of preferredCorners) {
-if (state.board[corner] === null) return { to: corner };
-}
-}
-if (turnNumber < 6 && state.board[12] === aiPlayerId) {
-// Coup 3 : centre de bord opposé au coin pris (crée 2 menaces simultanées)
-const edgeCenters = [7, 11, 13, 17];
-for (const ec of edgeCenters) {
-// Ne pas créer d'alignement interdit au placement
-const tmp = [...state.board]; tmp[ec] = player;
-if (!formsForbiddenPlacementAlignment(ec, player, tmp) && state.board[ec] === null) {
-return { to: ec };
-}
-}
-}
-if (turnNumber < 8) {
-// Coup 4 : préférer les cases créant 2 menaces (fork setup)
-const hotMoves = generateAllPossibleMoves(player, state.board, currentPhase);
-if (hotMoves.length > 0) {
-let bestFork = null; let bestForkScore = -Infinity;
-for (const m of hotMoves) {
-const nb = simulateMove(state.board, m, player);
-const forkScore = countDoubleMillSetups(nb, player) * 300 + getPotentialMillsCount(nb, player) * 80;
-if (forkScore > bestForkScore) { bestForkScore = forkScore; bestFork = m; }
-}
-if (bestFork && bestForkScore > 0) return bestFork;
-}
-}
+  // Tour 2-4 : si on occupe le centre, prendre un coin intérieur
+  // (6, 8, 16, 18 — CELL_HEAT=4, forment des lignes avec le centre)
+  if (turnNumber < 4 && state.board[12] === aiPlayerId) {
+    // Choisir le coin intérieur qui bloque le mieux l'adversaire
+    const corners = [6, 8, 16, 18];
+    let best = null, bestS = -Infinity;
+    for (const c of corners) {
+      if (state.board[c] !== null) continue;
+      const tmp = [...state.board]; tmp[c] = player;
+      if (formsForbiddenPlacementAlignment(c, player, tmp)) continue;
+      const s = scorePlacementMoveDeep(state.board, c, player);
+      if (s > bestS) { bestS = s; best = c; }
+    }
+    if (best !== null) return { to: best };
+  }
+
+  // Tour 3-6 : centre de bord (7, 11, 13, 17 — CELL_HEAT=4)
+  if (turnNumber < 6) {
+    const edgeCenters = [7, 11, 13, 17];
+    let best = null, bestS = -Infinity;
+    for (const ec of edgeCenters) {
+      if (state.board[ec] !== null) continue;
+      const tmp = [...state.board]; tmp[ec] = player;
+      if (formsForbiddenPlacementAlignment(ec, player, tmp)) continue;
+      const s = scorePlacementMoveDeep(state.board, ec, player);
+      if (s > bestS) { bestS = s; best = ec; }
+    }
+    if (best !== null) return { to: best };
+  }
+
+  // Tour 4-10 : scorePlacementMoveDeep sur toutes les cases disponibles
+  if (turnNumber < 10) {
+    const hotMoves = generateAllPossibleMoves(player, state.board, currentPhase);
+    if (hotMoves.length > 0) {
+      let bestMove2 = null, bestScore2 = -Infinity;
+      for (const m of hotMoves) {
+        const s = scorePlacementMoveDeep(state.board, m.to, player);
+        if (s > bestScore2) { bestScore2 = s; bestMove2 = m; }
+      }
+      if (bestMove2) return bestMove2;
+    }
+  }
 }
 }
 
@@ -22522,20 +22722,21 @@ return possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
 }
 
 // ── Profondeur adaptative avec budget temps ──────────────────────────────────
-// Niv.1 = aléatoire, Niv.2 = d=2, Niv.3 = d=3-4, Niv.4 = d=4-5 avec time limit
+// Niv.1 = aléatoire, Niv.2 = d=2, Niv.3 = d=3, Niv.4 Expert = d=4-5
+// La force de l'Expert vient surtout de l'évaluation, pas de la profondeur brute.
 const piecesLeft = state.board.filter(p => p !== null).length;
-const _budgetMs = aiDifficulty >= 4 ? 700 : 400; // budget max en ms
+const _budgetMs = aiDifficulty >= 4 ? 1500 : aiDifficulty >= 3 ? 600 : 400;
 const _startMs = Date.now();
 
 // Profondeur de base par niveau
 let depth = { 1: 1, 2: 2, 3: 3, 4: 4 }[aiDifficulty] || 2;
 
-// Niv.3-4 : légère hausse en endgame (peu de pions = arbre réduit)
+// Niv.3-4 : +1 en endgame seulement si l'arbre est vraiment petit
 if (aiDifficulty >= 3 && currentPhase === 'move' && piecesLeft <= 6) depth += 1;
-// Niv.4 : endgame très peu de pions
+// Niv.4 : +1 supplémentaire si très peu de pions (arbre minuscule)
 if (aiDifficulty === 4 && currentPhase === 'move' && piecesLeft <= 4) depth += 1;
-// Placement : profondeur identique car l'arbre est aussi large
-if (currentPhase === 'placement') depth = Math.min(depth, 3);
+// Placement : profondeur 4 Expert (branching ~15 → alpha-bêta rapide), 3 sinon
+if (currentPhase === 'placement') depth = aiDifficulty >= 4 ? 4 : Math.min(depth, 3);
 
 // Clear cache each decision for responsiveness
 __MINIMAX_TT.clear();
@@ -22557,14 +22758,24 @@ let beta = Infinity;
 // piecesPlaced = pieces on board + captured (total ever placed)
 const piecesPlacedSoFar = state.board.filter(p => p !== null).length + state.captured[1] + state.captured[2];
 
-// ── Tri des coups : moulins d'abord, puis évaluation rapide (améliore alpha-bêta) ──
-const sortedMoves = [...possibleMoves].sort((a, b) => {
-const na = simulateMove(state.board, a, player);
-const nb2 = simulateMove(state.board, b, player);
-const millA = findAllMills(state.board, na, a.from ?? a.to, a.to, player).length > 0 ? 1 : 0;
-const millB = findAllMills(state.board, nb2, b.from ?? b.to, b.to, player).length > 0 ? 1 : 0;
-return millB - millA; // moulins en tête
-});
+// ── Tri des coups à la racine ────────────────────────────────────────────────
+// Placement : scorePlacementMoveDeep (simulation complète, fork detection).
+// Déplacement : moulins d'abord, puis blocage.
+let sortedMoves;
+if (currentPhase === 'placement') {
+  sortedMoves = [...possibleMoves].sort((a, b) =>
+    scorePlacementMoveDeep(state.board, b.to, player) -
+    scorePlacementMoveDeep(state.board, a.to, player)
+  );
+} else {
+  sortedMoves = [...possibleMoves].sort((a, b) => {
+    const na = simulateMove(state.board, a, player);
+    const nb2 = simulateMove(state.board, b, player);
+    const millA = findAllMills(state.board, na, a.from ?? a.to, a.to, player).length > 0 ? 1 : 0;
+    const millB = findAllMills(state.board, nb2, b.from ?? b.to, b.to, player).length > 0 ? 1 : 0;
+    return millB - millA;
+  });
+}
 
 for (const move of sortedMoves) {
 // ── Budget temps : arrêter si dépassé (garder le meilleur coup trouvé) ──
@@ -22573,8 +22784,8 @@ if (aiDifficulty >= 3 && bestMove && (Date.now() - _startMs) > _budgetMs) break;
 const newBoard = simulateMove(state.board, move, player);
 const nextPiecesPlaced = currentPhase === 'placement' ? piecesPlacedSoFar + 1: piecesPlacedSoFar;
 
-// Petit jitter aléatoire pour casser les ex-aequo et éviter les cycles
-const jitter = (Math.random() * 4 - 2);
+// Expert niv.4 : zéro hasard — toujours le coup optimal
+const jitter = (aiDifficulty >= 4) ? 0 : (Math.random() * 4 - 2);
 const score = minimax(newBoard, depth - 1, false, opponent, alpha, beta, nextPiecesPlaced) + jitter;
 
 if (score > bestScore) {
@@ -31816,7 +32027,37 @@ window.TiddasSpectator       = SpectatorEnhanced;
   background: rgba(80,200,100,0.26); border-color: rgba(80,200,100,0.75);
 }
 #tpatch-rematch-request-btn:disabled {
-  opacity: 0.42; cursor: not-allowed;
+  opacity: 0.6; cursor: default;
+}
+/* ─ États visuels intuitifs de la bannière revanche ─ */
+@keyframes tpatch-rematch-attention {
+  0%, 100% { box-shadow: 0 8px 36px rgba(0,0,0,0.65), 0 0 0 1px rgba(240,200,80,0.08); }
+  50%      { box-shadow: 0 8px 44px rgba(0,0,0,0.65), 0 0 0 2px rgba(240,200,80,0.55), 0 0 28px rgba(240,200,80,0.35); }
+}
+@keyframes tpatch-rematch-launch {
+  0%, 100% { box-shadow: 0 8px 36px rgba(0,0,0,0.65), 0 0 0 1px rgba(80,200,100,0.25); }
+  50%      { box-shadow: 0 8px 44px rgba(0,0,0,0.65), 0 0 0 2px rgba(80,200,100,0.7), 0 0 30px rgba(80,200,100,0.45); }
+}
+/* L'adversaire a demandé la revanche : pulser pour attirer l'attention */
+#tpatch-rematch-banner.peer-waiting {
+  border-color: rgba(240,200,80,0.85);
+  animation: tpatch-rematch-attention 1.4s ease-in-out infinite;
+}
+#tpatch-rematch-banner.peer-waiting #tpatch-rematch-request-btn {
+  background: linear-gradient(135deg, #e8b830, #c89010);
+  color: #1a0f00; border-color: transparent;
+}
+#tpatch-rematch-banner.peer-waiting #tpatch-rematch-request-btn:hover {
+  background: linear-gradient(135deg, #f0c850, #d8a020);
+}
+/* Je suis prêt, j'attends l'adversaire */
+#tpatch-rematch-banner.me-ready {
+  border-color: rgba(80,200,100,0.55);
+}
+/* Les deux joueurs sont prêts : lancement imminent */
+#tpatch-rematch-banner.both-ready {
+  border-color: rgba(80,200,100,0.85);
+  animation: tpatch-rematch-launch 0.9s ease-in-out infinite;
 }
 /* Responsive mobile */
 @media (max-width: 480px) {
@@ -33179,7 +33420,7 @@ window.TiddasSpectator       = SpectatorEnhanced;
               if (!kothActive) {
                 // Pas de file d'attente → revanche classique entre les deux joueurs
                 // showAfterGame déclenche syncRematchUi via patchLegacyBanner
-                setTimeout(function() { RematchSystem.showAfterGame(iAmWin); }, 1200);
+                setTimeout(function() { RematchSystem.showAfterGame(iAmWin); }, 350);
               } else {
                 // File KoTH non-vide → rotation : masquer RematchSystem, activer KoTH
                 RematchSystem.hide();
@@ -33197,7 +33438,7 @@ window.TiddasSpectator       = SpectatorEnhanced;
           })();
         } else if (!_mid()) {
           // Fallback hors-ligne : pas de DB à consulter, afficher RematchSystem directement
-          setTimeout(function() { RematchSystem.showAfterGame(iAmWin); }, 1200);
+          setTimeout(function() { RematchSystem.showAfterGame(iAmWin); }, 350);
         }
       }
     });
@@ -34471,49 +34712,97 @@ window.TiddasSpectator       = SpectatorEnhanced;
       }
 
       banner.classList.add('visible');
+      // États visuels de la bannière pour différencier les phases du flux revanche
+      banner.classList.toggle('peer-waiting', !!peer && !mine);   // l'adversaire attend ma réponse → attirer l'œil
+      banner.classList.toggle('me-ready', !!mine && !peer);       // je suis prêt, j'attends l'autre
+      banner.classList.toggle('both-ready', !!mine && !!peer);    // lancement imminent
+
+      // Libellés localisés
+      let lblAccept   = '✅ Accepter la revanche';
+      let lblPropose  = '🔄 Demander la revanche';
+      let lblCancel   = '✓ Prêt — Annuler';
+      let lblStarting = '🚀 Lancement…';
+      let msgOffer        = 'Partie terminée. Voulez-vous rejouer ?';
+      let msgPeerWants    = "L'adversaire veut sa revanche — accepte pour relancer.";
+      let msgMineWaiting  = "Tu es prêt. En attente de l'adversaire…";
+      let msgBoth         = '✨ Les deux joueurs sont prêts. Lancement de la revanche…';
+      try {
+        if (window.currentLanguage === 'kab') {
+          lblAccept = '✅ Qbel ttaṛ';
+          lblPropose = '🔄 Suter ttaṛ';
+          lblCancel = '✓ Heggaɣ — Sefsex';
+          lblStarting = '🚀 Tebdu…';
+          msgOffer = 'Tkamal. Tebɣiḍ ad turareḍ daɣen ?';
+          msgPeerWants = "Axṣim-ik yebɣa ttaṛ — qbel akken ad tebdu.";
+          msgMineWaiting = "Theggaḍ. Ṛǧu axṣim-ik…";
+          msgBoth = '✨ Wejden yakk. Tebdu ttaṛ…';
+        } else if (window.currentLanguage === 'en') {
+          lblAccept = '✅ Accept rematch';
+          lblPropose = '🔄 Ask for rematch';
+          lblCancel = '✓ Ready — Cancel';
+          lblStarting = '🚀 Starting…';
+          msgOffer = 'Game over. Want to play again?';
+          msgPeerWants = "Opponent wants a rematch — accept to start.";
+          msgMineWaiting = "You're ready. Waiting for opponent…";
+          msgBoth = '✨ Both players ready. Starting rematch…';
+        }
+      } catch(_) {}
+
       if (reqBtn) {
         reqBtn.style.display = '';
-        reqBtn.disabled = !!runtime.locks.rematch;
         reqBtn.classList.toggle('ol-ready', !!mine);
-        
-        let cancelText = '✓ Annuler';
-        let rematchText = '🔄 Revanche';
-        try { if (window.t) { cancelText = '✓ ' + window.t('cancel', 'Annuler'); rematchText = '🔄 ' + window.t('onlineRematchHint', 'Revanche'); } } catch(_) {}
-        reqBtn.textContent = mine ? cancelText : rematchText;
-        
+        // Verrouiller le bouton quand les deux sont prêts (la partie démarre)
+        reqBtn.disabled = !!runtime.locks.rematch || (mine && peer);
+
+        // Libellé contextuel :
+        // - lancement en cours : "🚀 Lancement…"
+        // - adversaire a déjà demandé : "✅ Accepter la revanche" (un seul clic relance)
+        // - je suis prêt seul : "✓ Prêt — Annuler"
+        // - état initial : "🔄 Demander la revanche"
+        if (mine && peer)      reqBtn.textContent = lblStarting;
+        else if (mine)         reqBtn.textContent = lblCancel;
+        else if (peer)         reqBtn.textContent = lblAccept;
+        else                   reqBtn.textContent = lblPropose;
+
         // Recréer le handler à chaque sync pour refléter l'état courant (mine)
         const _mineSnap = mine;
         reqBtn.onclick = null;
         reqBtn.onclick = function() {
+          if (reqBtn.disabled) return;
+          // Feedback immédiat : reflète l'intention avant la réponse réseau
+          if (!_mineSnap) {
+            reqBtn.classList.add('ol-ready');
+            reqBtn.textContent = peer ? lblStarting : lblCancel;
+          } else {
+            reqBtn.classList.remove('ol-ready');
+            reqBtn.textContent = lblPropose;
+          }
           const p = Rematch.setReady(!_mineSnap);
           if (p && typeof p.catch === 'function') p.catch(function() {});
         };
       }
       if (accBtn) {
+        // L'ancien bouton "Accepter" séparé n'est plus utilisé : un seul bouton suffit.
         accBtn.style.display = 'none';
         accBtn.onclick = null;
       }
       if (msgEl) {
-        let textPeerWants = "L'adversaire veut sa revanche !";
-        let textOffer = "Partie terminée. Revanche ?";
-        try {
-            if (window.currentLanguage === 'kab') {
-                textPeerWants = "Axṣim-ik yebɣa ttaṛ !";
-                textOffer = "Tkamal. Ttaṛ ?";
-            } else if (window.currentLanguage === 'en') {
-                textPeerWants = "Opponent wants a rematch!";
-                textOffer = "Game over. Rematch?";
-            }
-        } catch(_) {}
-        
-        if (mine && peer) msgEl.textContent = window.t ? window.t('onlineRematchStart', "Lancement de la revanche…") : "Lancement de la revanche…";
-        else if (mine) msgEl.textContent = window.t ? window.t('onlineRematchWaitReady', "En attente de l'adversaire…") : "En attente de l'adversaire…";
-        else if (peer) msgEl.textContent = textPeerWants;
-        else msgEl.textContent = textOffer;
+        if (mine && peer)      msgEl.textContent = msgBoth;
+        else if (mine)         msgEl.textContent = msgMineWaiting;
+        else if (peer)         msgEl.textContent = msgPeerWants;
+        else                   msgEl.textContent = msgOffer;
       }
       if (mine && peer) {
         try { hideWinnerAnimation(); } catch (_) {}
         try { showScreen('game-play-area'); } catch (_) {}
+        // Les deux joueurs sont prêts → la revanche se lance, on masque la bannière sans attendre
+        // le prochain sync (qui ne se déclenchera qu'après changement de status côté serveur).
+        setTimeout(function() {
+          const b = document.getElementById('tpatch-rematch-banner');
+          if (b) {
+            b.classList.remove('visible', 'peer-waiting', 'me-ready', 'both-ready');
+          }
+        }, 600);
       }
     },
     hideRematchBanner: function() {
@@ -37377,6 +37666,1217 @@ window.TiddasSpectator       = SpectatorEnhanced;
     };
     
     window.onlineStartMatch = window.onlineStartMatch_Back4App;
+})();
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════════
+     TIDDAS PATCH v16 — Relais auto-promotion + Tournoi refonte complète
+     Additif, sans modification de l'architecture existante.
+     ════════════════════════════════════════════════════════════════════ -->
+<style id="tpatch-v16-css" nonce="tiddas">
+/* ── Relais : bannière de promotion auto ───────────────────────────── */
+#tpatch16-relay-banner{
+  position:fixed;left:50%;top:14px;transform:translateX(-50%);
+  display:none;align-items:center;gap:.7rem;
+  background:linear-gradient(135deg,rgba(20,12,4,.96),rgba(40,24,8,.96));
+  border:1px solid rgba(240,200,80,.55);border-radius:12px;
+  padding:.7rem 1rem;z-index:30000;
+  box-shadow:0 8px 28px rgba(0,0,0,.55),0 0 0 1px rgba(240,200,80,.15);
+  color:#f5e1a0;font:600 .88rem/1.2 var(--font-ui,system-ui);
+  max-width:min(92vw,460px);animation:tpatch16-slide .35s ease-out;
+}
+#tpatch16-relay-banner.visible{display:flex}
+#tpatch16-relay-banner .tpatch16-rb-ico{font-size:1.4rem;line-height:1}
+#tpatch16-relay-banner .tpatch16-rb-txt{flex:1;min-width:0}
+#tpatch16-relay-banner .tpatch16-rb-cancel{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+  color:#f5e1a0;border-radius:8px;padding:.32rem .7rem;
+  font:600 .78rem/1 var(--font-ui,system-ui);cursor:pointer;
+}
+#tpatch16-relay-banner .tpatch16-rb-cancel:hover{background:rgba(255,255,255,.14)}
+@keyframes tpatch16-slide{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+
+/* ── Tournoi v3 : overlay moderne ──────────────────────────────────── */
+#tt3-overlay{
+  position:fixed;inset:0;background:rgba(8,4,0,.86);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  z-index:25000;display:none;align-items:flex-start;justify-content:center;
+  padding:2.5rem 1rem 1rem;overflow-y:auto;
+}
+#tt3-overlay.visible{display:flex}
+.tt3-panel{
+  width:100%;max-width:920px;background:linear-gradient(160deg,rgba(28,18,8,.98),rgba(14,8,2,.98));
+  border:1px solid rgba(240,200,80,.32);border-radius:18px;
+  box-shadow:0 24px 72px rgba(0,0,0,.7),0 0 0 1px rgba(240,200,80,.08);
+  color:#f0e0b8;font-family:var(--font-ui,system-ui);overflow:hidden;
+}
+.tt3-head{
+  display:flex;align-items:center;gap:.8rem;padding:1.1rem 1.3rem;
+  background:linear-gradient(180deg,rgba(60,36,12,.6),rgba(20,12,4,0));
+  border-bottom:1px solid rgba(240,200,80,.18);
+}
+.tt3-head .tt3-title{font-size:1.05rem;font-weight:800;letter-spacing:.02em;flex:1}
+.tt3-head .tt3-title .tt3-ico{margin-right:.35rem}
+.tt3-head .tt3-sub{font-size:.74rem;opacity:.65;margin-top:.15rem;font-weight:500}
+.tt3-close{
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);
+  color:#f0e0b8;border-radius:10px;padding:.4rem .8rem;
+  font:600 .78rem/1 var(--font-ui,system-ui);cursor:pointer;flex-shrink:0;
+}
+.tt3-close:hover{background:rgba(255,255,255,.12)}
+.tt3-body{padding:1.1rem 1.3rem 1.3rem;display:flex;flex-direction:column;gap:1rem}
+.tt3-status{
+  display:flex;align-items:center;gap:.6rem;padding:.7rem .9rem;border-radius:10px;
+  background:rgba(240,200,80,.06);border:1px solid rgba(240,200,80,.18);
+  font-size:.84rem;line-height:1.35;
+}
+.tt3-status.live{background:rgba(80,180,100,.08);border-color:rgba(80,180,100,.32);color:#bbe8c0}
+.tt3-status.warn{background:rgba(220,140,60,.08);border-color:rgba(220,140,60,.32);color:#f0c890}
+.tt3-actions{display:flex;flex-wrap:wrap;gap:.55rem}
+.tt3-btn{
+  background:linear-gradient(135deg,#c9a040,#a06b1c);color:#1a0e02;
+  border:none;border-radius:10px;padding:.62rem 1rem;
+  font:700 .85rem/1 var(--font-ui,system-ui);cursor:pointer;
+  box-shadow:0 4px 14px rgba(200,150,40,.32);transition:transform .15s,box-shadow .2s;
+}
+.tt3-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(200,150,40,.42)}
+.tt3-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.tt3-btn.ghost{background:rgba(255,255,255,.06);color:#f0e0b8;border:1px solid rgba(255,255,255,.16);box-shadow:none}
+.tt3-btn.ghost:hover{background:rgba(255,255,255,.12)}
+.tt3-btn.danger{background:linear-gradient(135deg,#c84030,#80201a);color:#fff;box-shadow:0 4px 14px rgba(200,60,40,.32)}
+
+.tt3-section-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;opacity:.55;margin:.4rem 0 -.3rem}
+
+.tt3-participants{display:flex;flex-wrap:wrap;gap:.4rem}
+.tt3-chip{
+  display:inline-flex;align-items:center;gap:.4rem;padding:.32rem .7rem;
+  border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  font-size:.78rem;font-weight:600;
+}
+.tt3-chip.me{background:rgba(240,200,80,.16);border-color:rgba(240,200,80,.4);color:#ffe9a0}
+.tt3-chip .tt3-chip-ava{
+  width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#806020,#402a08);color:#fff;font-size:.72rem;font-weight:800;
+}
+
+.tt3-bracket{display:flex;gap:1rem;overflow-x:auto;padding-bottom:.6rem}
+.tt3-bracket::-webkit-scrollbar{height:6px}
+.tt3-bracket::-webkit-scrollbar-thumb{background:rgba(240,200,80,.25);border-radius:3px}
+.tt3-round{display:flex;flex-direction:column;gap:.8rem;min-width:170px;flex-shrink:0}
+.tt3-round-title{
+  font-size:.66rem;text-transform:uppercase;letter-spacing:.14em;
+  opacity:.55;text-align:center;font-weight:700;
+}
+.tt3-match{
+  background:rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;overflow:hidden;transition:border-color .2s,transform .15s;
+  position:relative;
+}
+.tt3-match.live{border-color:rgba(80,180,100,.55);box-shadow:0 0 0 1px rgba(80,180,100,.18),0 0 14px rgba(80,180,100,.18)}
+.tt3-match.live::before{
+  content:'● LIVE';position:absolute;top:-9px;right:8px;
+  background:#208030;color:#fff;font-size:.58rem;padding:1px 6px;border-radius:5px;letter-spacing:.06em;
+  animation:tt3-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tt3-pulse{50%{opacity:.55}}
+.tt3-match.mine{border-color:rgba(240,200,80,.55);box-shadow:0 0 0 1px rgba(240,200,80,.2),0 0 14px rgba(240,200,80,.2)}
+.tt3-match.clickable{cursor:pointer}
+.tt3-match.clickable:hover{transform:translateY(-1px);border-color:rgba(240,200,80,.45)}
+.tt3-mp{
+  display:flex;align-items:center;gap:.5rem;padding:.5rem .65rem;
+  border-bottom:1px solid rgba(255,255,255,.05);font-size:.8rem;
+}
+.tt3-mp:last-child{border-bottom:none}
+.tt3-mp.winner{background:rgba(80,180,100,.1);color:#cfecd0;font-weight:700}
+.tt3-mp.loser{opacity:.4}
+.tt3-mp .tt3-mp-ava{
+  width:22px;height:22px;border-radius:50%;flex-shrink:0;
+  display:inline-flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#806020,#402a08);color:#fff;font-size:.7rem;font-weight:800;
+}
+.tt3-mp .tt3-mp-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tt3-mp .tt3-mp-tag{font-size:.66rem;opacity:.7;font-weight:600}
+.tt3-mp.bye{opacity:.45;font-style:italic}
+
+/* ── Tournoi v3 : bannière "ton match est prêt" ─────────────────────── */
+#tt3-ready-banner{
+  position:fixed;left:50%;bottom:5.5rem;transform:translateX(-50%);
+  display:none;align-items:center;gap:.9rem;
+  background:linear-gradient(135deg,rgba(20,40,16,.96),rgba(8,30,12,.96));
+  border:1px solid rgba(120,220,140,.55);border-radius:14px;
+  padding:.85rem 1.1rem;z-index:30000;max-width:min(92vw,500px);
+  box-shadow:0 10px 32px rgba(0,0,0,.6),0 0 0 1px rgba(120,220,140,.15);
+  color:#d8f0d8;font-family:var(--font-ui,system-ui);
+  animation:tpatch16-slide .35s ease-out;
+}
+#tt3-ready-banner.visible{display:flex}
+#tt3-ready-banner .tt3-rb-ico{font-size:1.6rem;line-height:1;flex-shrink:0}
+#tt3-ready-banner .tt3-rb-body{flex:1;min-width:0}
+#tt3-ready-banner .tt3-rb-title{font-size:.82rem;font-weight:700;margin-bottom:.15rem}
+#tt3-ready-banner .tt3-rb-sub{font-size:.74rem;opacity:.78;line-height:1.3}
+#tt3-ready-banner .tt3-rb-btn{
+  background:linear-gradient(135deg,#7ad58a,#3aa050);color:#062010;border:none;
+  border-radius:8px;padding:.5rem .85rem;font:700 .8rem/1 var(--font-ui,system-ui);
+  cursor:pointer;flex-shrink:0;box-shadow:0 3px 10px rgba(80,180,100,.4);
+}
+#tt3-ready-banner .tt3-rb-btn:hover{transform:translateY(-1px)}
+
+/* Empty state */
+.tt3-empty{
+  text-align:center;padding:1.6rem 1rem;opacity:.55;font-size:.84rem;
+  background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);border-radius:10px;
+}
+
+@media (max-width:520px){
+  .tt3-panel{border-radius:14px}
+  .tt3-head{padding:.9rem 1rem}
+  .tt3-body{padding:.9rem 1rem 1rem}
+  .tt3-btn{font-size:.8rem;padding:.55rem .85rem}
+  .tt3-round{min-width:155px}
+}
+</style>
+
+<script id="tpatch-v16-js" nonce="tiddas">
+(function TiddasPatchV16(){
+  'use strict';
+
+  // ─── Helpers ────────────────────────────────────────────────────────
+  function _qs(id){ return document.getElementById(id); }
+  function _esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function _toast(m,d){ try{ window.showToast && window.showToast(m,d||2200); }catch(_){} }
+  function _vib(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(_){} }
+  function _parseReady(){ return !!(window.Parse && window.BACK4APP_CLASS); }
+  function _matchId(){ return (window.online && window.online.matchId) || null; }
+  function _myId(){ return String(window.onlinePlayerId || localStorage.getItem('tiddas_pid_v1') || ''); }
+  function _myName(){
+    try{
+      var n=(window.getOnlinePlayerName && window.getOnlinePlayerName())||'';
+      if(!n) n=(_qs('online-your-name')||{}).value||'';
+      if(!n) n=localStorage.getItem('tiddas_online_name_v1')||'';
+      return (n||'Joueur').toString().slice(0,24);
+    }catch(_){ return 'Joueur'; }
+  }
+  function _isSpec(){ return window.gameMode==='spectator' || (window.online && window.online.role===0); }
+  function _getMatch(id){ return new window.Parse.Query(window.BACK4APP_CLASS).get(id); }
+  function _lang(){ try{ return (window.currentLanguage||'fr').toLowerCase().slice(0,2); }catch(_){ return 'fr'; } }
+
+  // ─── i18n minimale (fr/en/ar/kab) ────────────────────────────────────
+  var I18N = {
+    fr:{
+      relayPromote:'Vous êtes le suivant — prise de relève dans {s}s…',
+      relayCancel:'Annuler',
+      relayTaken:'⚔️ Vous reprenez la partie !',
+      relayWaiting:'⏳ En file d\'attente : position #{n}',
+      relayCancelled:'Relais désactivé pour ce match',
+      relaySkipped:'⏸ Relais ignoré — cliquez sur le bouton pour reprendre',
+      relayTooLate:'⚡ Trop tard — un autre joueur a pris le relais',
+      relayFailed:'❌ Échec de la prise de relève — réessayez',
+      ttInviteNew:'🏆 Nouveau tournoi disponible — {n} joueur(s) inscrit(s)',
+      ttInviteJoin:'Rejoindre',
+      ttTitle:'Tournoi',
+      ttSubLobby:'Inscription ouverte — minimum 2 joueurs',
+      ttSubLive:'Tournoi en cours — Tour {r}/{tot}',
+      ttSubDone:'🏆 Tournoi terminé — Vainqueur : {w}',
+      ttRegister:'M\'inscrire',
+      ttUnregister:'Me retirer',
+      ttStart:'▶ Démarrer le tournoi',
+      ttClose:'Fermer',
+      ttReset:'Réinitialiser',
+      ttEmpty:'Aucun bracket — inscrivez-vous pour démarrer.',
+      ttJoinMatch:'Rejoindre mon match',
+      ttSpectateMatch:'Regarder',
+      ttRoundFinal:'Finale',
+      ttRoundSemi:'Demi-finales',
+      ttRoundQuart:'Quarts',
+      ttRoundN:'Tour {n}',
+      ttBye:'BYE',
+      ttTbd:'En attente',
+      ttReadyTitle:'🎯 Votre match de tournoi est prêt !',
+      ttReadySub:'Affrontez {opp} — Tour {r}',
+      ttReadyBtn:'Rejoindre',
+      ttRegistered:'✅ Inscrit au tournoi',
+      ttUnregistered:'Désinscription effectuée',
+      ttStarted:'🏆 Tournoi démarré !',
+      ttNoOpp:'En attente d\'un adversaire…',
+      ttYouWon:'🏆 Match gagné — vous passez au tour suivant',
+      ttYouLost:'Éliminé — bon tournoi !',
+      ttChampion:'🏆 Champion du tournoi : {w} !',
+      ttResetConfirm:'Réinitialiser le tournoi pour tous les joueurs ?',
+      ttHostOnly:'Seul l\'organisateur peut faire cela.',
+      ttMinPlayers:'Il faut au moins 2 joueurs.',
+      ttAlreadyStarted:'Tournoi déjà démarré.',
+      ttRoomToast:'Salon de tournoi :',
+      ttRoomError:'Impossible de rejoindre le salon :',
+      ttSyncFailed:'⚠ Synchronisation échouée — réessayez'
+    },
+    en:{
+      relayPromote:'You\'re next — taking over in {s}s…',
+      relayCancel:'Cancel',
+      relayTaken:'⚔️ You\'ve taken over the game!',
+      relayWaiting:'⏳ Queue position: #{n}',
+      relayCancelled:'Relay disabled for this match',
+      relaySkipped:'⏸ Relay skipped — tap to resume',
+      relayTooLate:'⚡ Too late — another player took over',
+      relayFailed:'❌ Takeover failed — try again',
+      ttInviteNew:'🏆 New tournament available — {n} player(s) registered',
+      ttInviteJoin:'Join',
+      ttTitle:'Tournament',
+      ttSubLobby:'Registration open — minimum 2 players',
+      ttSubLive:'Tournament live — Round {r}/{tot}',
+      ttSubDone:'🏆 Finished — Champion: {w}',
+      ttRegister:'Register',
+      ttUnregister:'Withdraw',
+      ttStart:'▶ Start tournament',
+      ttClose:'Close',
+      ttReset:'Reset',
+      ttEmpty:'No bracket yet — register to start.',
+      ttJoinMatch:'Join my match',
+      ttSpectateMatch:'Watch',
+      ttRoundFinal:'Final',
+      ttRoundSemi:'Semi-finals',
+      ttRoundQuart:'Quarter-finals',
+      ttRoundN:'Round {n}',
+      ttBye:'BYE',
+      ttTbd:'TBD',
+      ttReadyTitle:'🎯 Your tournament match is ready!',
+      ttReadySub:'Face {opp} — Round {r}',
+      ttReadyBtn:'Join',
+      ttRegistered:'✅ Registered',
+      ttUnregistered:'Withdrawn',
+      ttStarted:'🏆 Tournament started!',
+      ttNoOpp:'Waiting for opponent…',
+      ttYouWon:'🏆 Match won — advancing to next round',
+      ttYouLost:'Eliminated — good tournament!',
+      ttChampion:'🏆 Tournament champion: {w}!',
+      ttResetConfirm:'Reset tournament for everyone?',
+      ttHostOnly:'Organizer only.',
+      ttMinPlayers:'At least 2 players required.',
+      ttAlreadyStarted:'Tournament already started.',
+      ttRoomToast:'Tournament room:',
+      ttRoomError:'Cannot join room:',
+      ttSyncFailed:'⚠ Sync failed — try again'
+    },
+    ar:{
+      relayPromote:'أنت التالي — استلام اللعبة خلال {s} ثوانٍ…',
+      relayCancel:'إلغاء',
+      relayTaken:'⚔️ لقد استلمت اللعبة!',
+      relayWaiting:'⏳ موقعك في الطابور: #{n}',
+      relayCancelled:'تم تعطيل التناوب لهذه المباراة',
+      relaySkipped:'⏸ تم التخطي — اضغط للاستئناف',
+      relayTooLate:'⚡ فات الأوان — لاعب آخر استلم',
+      relayFailed:'❌ فشل الاستلام — أعد المحاولة',
+      ttInviteNew:'🏆 بطولة جديدة متاحة — {n} لاعبًا مسجلًا',
+      ttInviteJoin:'انضم',
+      ttTitle:'بطولة',
+      ttSubLobby:'التسجيل مفتوح — لاعبان على الأقل',
+      ttSubLive:'البطولة جارية — الجولة {r}/{tot}',
+      ttSubDone:'🏆 انتهت — البطل: {w}',
+      ttRegister:'تسجيل',
+      ttUnregister:'انسحاب',
+      ttStart:'▶ بدء البطولة',
+      ttClose:'إغلاق',
+      ttReset:'إعادة',
+      ttEmpty:'لا توجد مباريات بعد — سجّل للبدء.',
+      ttJoinMatch:'انضم إلى مباراتي',
+      ttSpectateMatch:'مشاهدة',
+      ttRoundFinal:'النهائي',
+      ttRoundSemi:'نصف النهائي',
+      ttRoundQuart:'ربع النهائي',
+      ttRoundN:'الجولة {n}',
+      ttBye:'تأهل تلقائي',
+      ttTbd:'قيد التحديد',
+      ttReadyTitle:'🎯 مباراتك جاهزة!',
+      ttReadySub:'واجه {opp} — الجولة {r}',
+      ttReadyBtn:'انضم',
+      ttRegistered:'✅ تم التسجيل',
+      ttUnregistered:'تم الانسحاب',
+      ttStarted:'🏆 بدأت البطولة!',
+      ttNoOpp:'في انتظار خصم…',
+      ttYouWon:'🏆 ربحت المباراة — انتقال للجولة التالية',
+      ttYouLost:'مستبعد — بطولة جيدة!',
+      ttChampion:'🏆 بطل البطولة: {w}!',
+      ttResetConfirm:'إعادة تعيين البطولة للجميع؟',
+      ttHostOnly:'المنظم فقط.',
+      ttMinPlayers:'لاعبان على الأقل.',
+      ttAlreadyStarted:'البطولة بدأت بالفعل.',
+      ttRoomToast:'غرفة البطولة:',
+      ttRoomError:'تعذر الانضمام للغرفة:',
+      ttSyncFailed:'⚠ فشلت المزامنة — أعد المحاولة'
+    },
+    kab:{
+      relayPromote:'D kečč i d-iteddun — tarewla deg {s}s…',
+      relayCancel:'Sefsex',
+      relayTaken:'⚔️ Teṭṭfeḍ urar!',
+      relayWaiting:'⏳ Adeg-ik di tira: #{n}',
+      relayCancelled:'Tarewla tensa i urar-a',
+      relaySkipped:'⏸ Tarewla tettwagdel — sit i tuɣalin',
+      relayTooLate:'⚡ Yeḍra-yas — wiyaḍ ṭṭfen urar',
+      relayFailed:'❌ Tewweḍ-d tuccḍa — ɛreḍ tikkelt-nniḍen',
+      ttInviteNew:'🏆 Tafaska tamaynut — {n} yimriyaten i ijerrden',
+      ttInviteJoin:'Kcem',
+      ttTitle:'Tafaska',
+      ttSubLobby:'Ajerred yeldi — sin yimriyaten d amezwaru',
+      ttSubLive:'Tafaska tetteddu — Tawala {r}/{tot}',
+      ttSubDone:'🏆 Tfukk — Amerbaḥ: {w}',
+      ttRegister:'Jerred-iyi',
+      ttUnregister:'Kkes-iyi',
+      ttStart:'▶ Bdu tafaska',
+      ttClose:'Mdel',
+      ttReset:'Ales',
+      ttEmpty:'Ulac bracket — jerred iman-ik.',
+      ttJoinMatch:'Kcem ɣer urar-iw',
+      ttSpectateMatch:'Wali',
+      ttRoundFinal:'Taggara',
+      ttRoundSemi:'Azgen-taggara',
+      ttRoundQuart:'Akuẓ-taggara',
+      ttRoundN:'Tawala {n}',
+      ttBye:'BYE',
+      ttTbd:'Aṛaju',
+      ttReadyTitle:'🎯 Urar-ik n tfaska yewjed!',
+      ttReadySub:'Mnaɣ {opp} — Tawala {r}',
+      ttReadyBtn:'Kcem',
+      ttRegistered:'✅ Tjerrdeḍ',
+      ttUnregistered:'Tekkseḍ iman-ik',
+      ttStarted:'🏆 Tafaska tebda!',
+      ttNoOpp:'Aṛaju n umnaɣ…',
+      ttYouWon:'🏆 Trebḥeḍ — tedduḍ ɣer tewala d-iteddun',
+      ttYouLost:'Tettwakkseḍ — tafaska tameggazt!',
+      ttChampion:'🏆 Amerbaḥ n tfaska: {w}!',
+      ttResetConfirm:'Ales tafaska i medden akk?',
+      ttHostOnly:'Anabaḍ kan.',
+      ttMinPlayers:'Sin yimriyaten ma drus.',
+      ttAlreadyStarted:'Tafaska tebda yakan.',
+      ttRoomToast:'Taxxamt n tfaska:',
+      ttRoomError:'Ur izmir ara ad ikcem ɣer texxamt:',
+      ttSyncFailed:'⚠ Amsidef yefcel — ɛreḍ tikkelt-nniḍen'
+    }
+  };
+  function _t(k,vars){
+    var L=I18N[_lang()]||I18N.fr; var s=L[k]||I18N.fr[k]||k;
+    if(vars) Object.keys(vars).forEach(function(v){ s=s.replace('{'+v+'}',vars[v]); });
+    return s;
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // PARTIE 1 — RELAY V3 : promotion auto du 1er spectateur
+  // ════════════════════════════════════════════════════════════════════
+  var RelayV3 = (function(){
+    var _poll=null, _countdown=null, _busy=false, _lastPromotedMid=null;
+    var POLL_MS=2500, COUNTDOWN_S=4;
+
+    function _banner(){ return _qs('tpatch16-relay-banner'); }
+    function _ensureBanner(){
+      var b=_banner(); if(b) return b;
+      b=document.createElement('div');
+      b.id='tpatch16-relay-banner';
+      b.innerHTML='<span class="tpatch16-rb-ico">⚡</span>'
+                 +'<span class="tpatch16-rb-txt"></span>'
+                 +'<button type="button" class="tpatch16-rb-cancel"></button>';
+      document.body.appendChild(b);
+      b.querySelector('.tpatch16-rb-cancel').addEventListener('click', function(){ _cancelCountdown(true); _leaveQueue(); });
+      return b;
+    }
+    function _showBanner(txt,cancelTxt){
+      var b=_ensureBanner();
+      b.querySelector('.tpatch16-rb-txt').textContent=txt;
+      var c=b.querySelector('.tpatch16-rb-cancel');
+      c.textContent=cancelTxt||_t('relayCancel');
+      c.style.display=cancelTxt===null?'none':'';
+      b.classList.add('visible');
+    }
+    function _hideBanner(){ var b=_banner(); if(b) b.classList.remove('visible'); }
+
+    function _readQueue(m){
+      // Unifie spectatorQueue (IDs) et specQueue ({name,ts})
+      var sq=m.get('spectatorQueue')||[];
+      var sq2=m.get('specQueue')||[];
+      var seen={};
+      var out=[];
+      sq.forEach(function(e){
+        var id=(e&&typeof e==='object')?String(e.id||''):String(e||'');
+        if(id && !seen[id]){ seen[id]=1; out.push({id:id,name:(e&&e.name)||''}); }
+      });
+      sq2.forEach(function(e){
+        if(!e) return;
+        var name=(typeof e==='string')?e:(e.name||'');
+        // Pas d'ID dans specQueue, on garde la trace par nom uniquement
+        if(name && !seen['n:'+name]){ seen['n:'+name]=1; out.push({id:'',name:name}); }
+      });
+      return out;
+    }
+
+    function _myQueuePos(queue){
+      var mid=_myId(), mn=_myName();
+      for(var i=0;i<queue.length;i++){
+        if(queue[i].id && queue[i].id===mid) return i;
+        if(!queue[i].id && queue[i].name===mn) return i;
+      }
+      return -1;
+    }
+
+    function _findVacantSlot(m){
+      var p1Active=m.get('p1Active')!==false;
+      var p2Active=m.get('p2Active')!==false;
+      var p1Id=m.get('p1Id'), p2Id=m.get('p2Id');
+      if(p1Id && !p1Active) return 1;
+      if(p2Id && !p2Active) return 2;
+      // Game ended → loser slot becomes vacant after a delay
+      // We don't auto-mark inactive here (winner does that), but if status==='ended' and loser known
+      try{
+        var st=m.get('state'); if(st && typeof st==='string') st=JSON.parse(st);
+        if(st && st.winner){
+          var loserId = (st.winner===1) ? p2Id : p1Id;
+          var loserField = (st.winner===1) ? 'p2Active' : 'p1Active';
+          if(loserId && m.get(loserField)!==false){
+            // Slot will become vacant; offer the head spectator the chance
+            return (st.winner===1) ? 2 : 1;
+          }
+        }
+      }catch(_){}
+      return 0;
+    }
+
+    var _userSkippedMid=null; // si l'utilisateur a cliqué "Annuler", on ne ré-amorce plus le countdown pour ce match
+    function _cancelCountdown(userTriggered){
+      if(_countdown){ clearInterval(_countdown.t); _countdown=null; }
+      _hideBanner();
+      if(userTriggered){
+        _userSkippedMid=_matchId();
+        _toast(_t('relayCancelled'),1800);
+      }
+    }
+
+    function _doTakeover(slot){
+      _busy=true;
+      // Toujours utiliser le chemin Parse direct : il gère la concurrence (rev) proprement.
+      // Les anciens systèmes (SpectatorKoTH / TiddasSpectator) restaient muets en cas d'échec.
+      _rawTakeover(slot).then(function(ok){
+        if(!ok){
+          // Échec : autoriser une nouvelle tentative (autre slot peut s'ouvrir)
+          _lastPromotedMid=null;
+        }
+      }).catch(function(){ _lastPromotedMid=null; });
+      setTimeout(function(){ _busy=false; }, 2500);
+    }
+
+    async function _rawTakeover(slot){
+      var mid=_matchId(); if(!mid||!_parseReady()) return false;
+      // Boucle de retry avec re-fetch en cas de conflit de rev (course condition entre spectateurs)
+      for(var attempt=0; attempt<3; attempt++){
+        try{
+          var m=await _getMatch(mid);
+          var act='p'+slot+'Active', idF='p'+slot+'Id', nmF='p'+slot+'Name';
+          // Quelqu'un d'autre a déjà pris le slot ?
+          if(m.get(act)!==false && m.get(idF) && m.get(idF)!==_myId()){
+            // Essayer l'autre slot ?
+            var other=3-slot;
+            var actO='p'+other+'Active', idFO='p'+other+'Id';
+            if(m.get(actO)===false || !m.get(idFO)){
+              slot=other; act=actO; idF=idFO; nmF='p'+other+'Name';
+            }else{
+              _toast(_t('relayTooLate'),2200);
+              return false;
+            }
+          }
+          // Retire de la queue
+          var sq=(m.get('spectatorQueue')||[]).filter(function(e){
+            var id=(e&&typeof e==='object')?String(e.id||''):String(e||'');
+            return id!==_myId();
+          });
+          var sq2=(m.get('specQueue')||[]).filter(function(e){
+            var n=(e&&typeof e==='object')?(e.name||''):String(e||'');
+            return n!==_myName();
+          });
+          m.set(idF,_myId()); m.set(nmF,_myName()); m.set(act,true);
+          m.set('spectatorQueue',sq); m.set('specQueue',sq2);
+          m.increment('rev',1);
+          await m.save();
+          if(window.online){ window.online.role=slot; window.online.isHost=(slot===1); window.online.connected=true; }
+          window.gameMode='online'; window.humanPlayerId=slot; window.aiPlayerId=3-slot;
+          document.body.classList.remove('is-spectating');
+          _toast(_t('relayTaken'),2200); _vib([60,30,90]);
+          return true;
+        }catch(e){
+          // Conflit possible → retry
+          if(attempt===2){ _toast(_t('relayFailed'),2200); return false; }
+          await new Promise(function(r){ setTimeout(r, 400+Math.random()*400); });
+        }
+      }
+      return false;
+    }
+
+    // Retire proprement le joueur courant de la file (spectatorQueue + specQueue)
+    async function _leaveQueue(){
+      var mid=_matchId(); if(!mid||!_parseReady()) return;
+      try{
+        var m=await _getMatch(mid);
+        var sq=(m.get('spectatorQueue')||[]).filter(function(e){
+          var id=(e&&typeof e==='object')?String(e.id||''):String(e||'');
+          return id!==_myId();
+        });
+        var sq2=(m.get('specQueue')||[]).filter(function(e){
+          var n=(e&&typeof e==='object')?(e.name||''):String(e||'');
+          return n!==_myName();
+        });
+        m.set('spectatorQueue',sq); m.set('specQueue',sq2);
+        m.increment('rev',1);
+        await m.save();
+      }catch(_){}
+    }
+
+    function _startCountdown(slot,queue){
+      if(_countdown||_busy) return;
+      if(_lastPromotedMid===_matchId()) return; // déjà tenté pour ce match
+      if(_userSkippedMid===_matchId()) return;   // l'utilisateur a annulé pour ce match
+      var s=COUNTDOWN_S;
+      _showBanner(_t('relayPromote',{s:s}),_t('relayCancel'));
+      _countdown={s:s,slot:slot,t:setInterval(function(){
+        s--;
+        if(s<=0){
+          clearInterval(_countdown.t); _countdown=null; _hideBanner();
+          _lastPromotedMid=_matchId();
+          _doTakeover(slot);
+        }else{
+          var b=_banner(); if(b) b.querySelector('.tpatch16-rb-txt').textContent=_t('relayPromote',{s:s});
+        }
+      },1000)};
+    }
+
+    async function _tick(){
+      if(!_isSpec()||!_parseReady()||!_matchId()){ _hideBanner(); return; }
+      try{
+        var m=await _getMatch(_matchId());
+        var q=_readQueue(m);
+        var pos=_myQueuePos(q);
+        var slot=_findVacantSlot(m);
+        if(pos===0 && slot && _userSkippedMid!==_matchId()){
+          _startCountdown(slot,q);
+        }else if(pos>0){
+          _cancelCountdown();
+          _showBanner(_t('relayWaiting',{n:pos+1}),null);
+        }else if(_userSkippedMid===_matchId() && pos>=0){
+          // utilisateur a renoncé mais reste en file : afficher info discrète
+          _showBanner(_t('relaySkipped'),null);
+        }else{
+          _cancelCountdown();
+        }
+      }catch(_){}
+    }
+
+    function start(){
+      if(_poll) return;
+      _poll=setInterval(_tick,POLL_MS);
+      // Tick immédiat
+      setTimeout(_tick,400);
+    }
+    function stop(){
+      if(_poll){ clearInterval(_poll); _poll=null; }
+      _cancelCountdown();
+    }
+
+    // Démarre quand on entre en mode spectateur, arrête sinon
+    function _watch(){
+      var lastMid=null;
+      setInterval(function(){
+        var mid=_matchId();
+        if(mid!==lastMid){
+          // Changement de match : reset des verrous locaux
+          _lastPromotedMid=null; _userSkippedMid=null; lastMid=mid;
+        }
+        if(_isSpec() && mid) start();
+        else if(!_isSpec() || !mid){ stop(); _lastPromotedMid=null; _userSkippedMid=null; }
+      },1500);
+    }
+
+    // Masque le bouton legacy (#ol-takeover-btn) car la promotion est désormais automatique
+    function _hideLegacyButtons(){
+      var b=_qs('ol-takeover-btn'); if(b){ b.style.display='none'; }
+      // #tpatch-takeover-btn reste utilisable comme fallback manuel
+    }
+
+    return { init:function(){ _watch(); _hideLegacyButtons(); setInterval(_hideLegacyButtons,3000); } };
+  })();
+
+  // ════════════════════════════════════════════════════════════════════
+  // PARTIE 2 — TOURNOI V3 : refonte complète UI + logique
+  // Stockage : match.tournament (JSON) — compatible avec l'existant.
+  // ════════════════════════════════════════════════════════════════════
+  var TournamentV3 = (function(){
+    var STORAGE='tiddas_tournament_v3';
+    var _data=null, _poll=null, _lastSavedSig='', _readyShownFor='', _initDone=false;
+
+    function _empty(){
+      return { v:3, id:null, status:'lobby', createdBy:null,
+               participants:[], bracket:[], currentRound:0, champion:null, ts:Date.now() };
+    }
+    function _load(){
+      try{ var d=JSON.parse(localStorage.getItem(STORAGE)||'null'); if(d&&d.v===3) _data=d; }catch(_){}
+      if(!_data) _data=_empty();
+    }
+    function _save(){ try{ _data.ts=Date.now(); localStorage.setItem(STORAGE,JSON.stringify(_data)); }catch(_){} }
+    function _sig(d){ try{ return JSON.stringify({s:d.status,p:d.participants.length,b:d.bracket.map(function(r){return r.map(function(m){return [m.p1&&m.p1.id,m.p2&&m.p2.id,m.winner&&m.winner.id,m.status];});})}); }catch(_){ return ''; } }
+
+    function _genBracket(parts){
+      var ps=parts.slice();
+      // Shuffle déterministe (par id) pour équité
+      ps.sort(function(a,b){ return (a.id||'').localeCompare(b.id||''); });
+      var size=1; while(size<ps.length) size*=2;
+      while(ps.length<size) ps.push({id:null,name:'BYE',_bye:true});
+      var rounds=[], current=[];
+      for(var i=0;i<ps.length;i+=2){
+        var mm={p1:ps[i],p2:ps[i+1],winner:null,status:'pending'};
+        if(!mm.p1.id){ mm.winner=mm.p2; mm.status='done'; }
+        else if(!mm.p2.id){ mm.winner=mm.p1; mm.status='done'; }
+        current.push(mm);
+      }
+      rounds.push(current);
+      while(current.length>1){
+        var next=[];
+        for(var j=0;j<current.length;j+=2){
+          var pm={p1:current[j].winner||null, p2:current[j+1].winner||null, winner:null, status:'pending'};
+          next.push(pm);
+        }
+        rounds.push(next);
+        current=next;
+      }
+      return rounds;
+    }
+
+    function _propagate(){
+      // Propage les gagnants connus dans les rounds suivants
+      for(var r=0;r<_data.bracket.length-1;r++){
+        var cur=_data.bracket[r], nxt=_data.bracket[r+1];
+        for(var i=0;i<cur.length;i++){
+          var parentIdx=Math.floor(i/2), slot=(i%2===0)?'p1':'p2';
+          var w=cur[i].winner;
+          if(w && nxt[parentIdx][slot] && nxt[parentIdx][slot].id===w.id) continue;
+          if(w) nxt[parentIdx][slot]=w;
+          // Auto-advance BYE
+          var pm=nxt[parentIdx];
+          if(pm.p1 && pm.p2 && pm.p1._bye && !pm.winner){ pm.winner=pm.p2; pm.status='done'; }
+          else if(pm.p1 && pm.p2 && pm.p2._bye && !pm.winner){ pm.winner=pm.p1; pm.status='done'; }
+        }
+      }
+      // Détermine le round courant
+      for(var r2=0;r2<_data.bracket.length;r2++){
+        var pending=_data.bracket[r2].some(function(m){ return m.status!=='done'; });
+        if(pending){ _data.currentRound=r2; return; }
+      }
+      _data.currentRound=_data.bracket.length-1;
+      // Champion
+      var last=_data.bracket[_data.bracket.length-1];
+      if(last && last.length===1 && last[0].winner){
+        _data.status='done'; _data.champion=last[0].winner;
+      }
+    }
+
+    function _findMyMatch(){
+      if(_data.status!=='active') return null;
+      var mid=_myId();
+      var round=_data.bracket[_data.currentRound]||[];
+      for(var i=0;i<round.length;i++){
+        var m=round[i];
+        if(m.status==='done') continue;
+        if((m.p1&&m.p1.id===mid)||(m.p2&&m.p2.id===mid)){
+          return {round:_data.currentRound, idx:i, match:m,
+                  opp: (m.p1&&m.p1.id===mid)?m.p2:m.p1};
+        }
+      }
+      return null;
+    }
+
+    function _matchRoomCode(roundIdx,matchIdx){
+      var tid=(_data.id||'T').toString().slice(-4).toUpperCase();
+      return 'T'+tid+'R'+(roundIdx+1)+'M'+(matchIdx+1);
+    }
+
+    // ── Sync serveur ────────────────────────────────────────────────────
+    // Mutation transactionnelle : fetch → applique op sur l'état serveur → save (avec retry sur conflit)
+    // op(serverData) doit retourner les nouvelles données ; servira aussi à init si rien sur serveur.
+    async function _mutateOnServer(op){
+      if(!_parseReady()||!_matchId()){
+        // Hors ligne : applique seulement en local
+        var local=op(_data && _data.v===3 ? JSON.parse(JSON.stringify(_data)) : _empty());
+        if(local){ _data=local; _save(); _render(); _checkReady(); }
+        return;
+      }
+      for(var attempt=0; attempt<3; attempt++){
+        try{
+          var m=await _getMatch(_matchId());
+          var raw=m.get('tournament');
+          var srv=null;
+          try{ srv=raw?JSON.parse(raw):null; }catch(_){ srv=null; }
+          if(!srv || srv.v!==3) srv=_empty();
+          var next=op(srv);
+          if(!next) return;
+          next.ts=Date.now();
+          m.set('tournament', JSON.stringify(next));
+          m.increment('rev',1);
+          await m.save();
+          _data=next; _save(); _lastSavedSig=_sig(next); _render(); _checkReady();
+          return;
+        }catch(e){
+          if(attempt===2){
+            _toast(_t('ttSyncFailed'),2200);
+            return;
+          }
+          await new Promise(function(r){ setTimeout(r, 300+Math.random()*400); });
+        }
+      }
+    }
+
+    // Compatibilité : ancien nom utilisé par d'autres patches
+    async function _syncToServer(){
+      await _mutateOnServer(function(srv){
+        // Si serveur vide ou ancien, pousse local ; sinon laisse serveur (notre _data est probablement obsolète)
+        if(!srv || !srv.participants || srv.participants.length===0) return _data;
+        // Sinon, fusion participants (union par id)
+        var byId={};
+        srv.participants.forEach(function(p){ byId[p.id]=p; });
+        (_data.participants||[]).forEach(function(p){ if(!byId[p.id]) byId[p.id]=p; });
+        srv.participants=Object.keys(byId).map(function(k){ return byId[k]; });
+        return srv;
+      });
+    }
+
+    var _lastSeenTournamentId=null;
+    function applyFromServer(jsonStr){
+      if(!jsonStr||jsonStr==='null') return;
+      try{
+        var r=(typeof jsonStr==='string')?JSON.parse(jsonStr):jsonStr;
+        if(!r||!r.participants) return;
+        // Si données v3, fusionne ; sinon convertit grossièrement
+        if(r.v===3){
+          var sig=_sig(r);
+          if(sig!==_sig(_data)){
+            // Détection d'un nouveau tournoi (autre id que celui suivi)
+            var mid=_myId();
+            var iAmIn=r.participants.some(function(p){ return p.id===mid; });
+            var isNewTournament = r.id && r.id!==_lastSeenTournamentId && r.status==='lobby' && !iAmIn;
+            _data=r; _save(); _render(); _checkReady();
+            _lastSeenTournamentId=r.id;
+            if(isNewTournament){
+              _showTournamentInvite(r);
+            }
+          }
+        }else{
+          // Legacy → import minimal
+          if(!_data || _data.participants.length===0){
+            _data._legacy=true;
+            _data.participants=(r.participants||[]).map(function(p){ return {id:p.id,name:p.name}; });
+            if(r.bracket && r.bracket.length){ _data.bracket=r.bracket; _data.status=r.active?'active':'lobby'; }
+            _save(); _render();
+          }
+        }
+      }catch(_){}
+    }
+
+    // Bannière d'invitation à rejoindre un nouveau tournoi
+    function _showTournamentInvite(t){
+      try{
+        var b=_qs('tt3-invite-banner');
+        if(!b){
+          b=document.createElement('div'); b.id='tt3-invite-banner';
+          b.style.cssText='position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 5.5rem);transform:translateX(-50%);background:linear-gradient(135deg,#7a3a8a,#3a1a5a);color:#fff;padding:.75rem 1rem;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.5);display:none;z-index:9999;align-items:center;gap:.7rem;font-size:.85rem;font-weight:600;max-width:92vw;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12)';
+          b.innerHTML='<span style="font-size:1.4rem">🏆</span><span class="tt3-iv-txt" style="flex:1;min-width:0"></span><button type="button" class="tt3-iv-btn" style="background:linear-gradient(135deg,#f0c850,#c8a030);color:#2a1810;border:0;padding:.45rem .9rem;border-radius:10px;font-weight:800;cursor:pointer;white-space:nowrap"></button><button type="button" class="tt3-iv-close" aria-label="Fermer" style="background:transparent;border:0;color:#fff;font-size:1.1rem;cursor:pointer;padding:0 .3rem">✕</button>';
+          document.body.appendChild(b);
+        }
+        b.querySelector('.tt3-iv-txt').textContent=_t('ttInviteNew',{n:(t.participants||[]).length});
+        var btn=b.querySelector('.tt3-iv-btn');
+        btn.textContent=_t('ttInviteJoin');
+        btn.onclick=function(){ b.style.display='none'; open(); register(); };
+        b.querySelector('.tt3-iv-close').onclick=function(){ b.style.display='none'; };
+        b.style.display='flex';
+        _vib([30,20,30]);
+        setTimeout(function(){ if(b) b.style.display='none'; }, 12000);
+      }catch(_){}
+    }
+
+    // ── UI ──────────────────────────────────────────────────────────────
+    function _ensureOverlay(){
+      if(_qs('tt3-overlay')) return _qs('tt3-overlay');
+      var ov=document.createElement('div');
+      ov.id='tt3-overlay'; ov.setAttribute('role','dialog'); ov.setAttribute('aria-modal','true');
+      ov.innerHTML=''
+        +'<div class="tt3-panel" role="document">'
+        +  '<div class="tt3-head">'
+        +    '<div style="flex:1;min-width:0">'
+        +      '<div class="tt3-title"><span class="tt3-ico">🏆</span><span id="tt3-title-txt"></span></div>'
+        +      '<div class="tt3-sub" id="tt3-sub"></div>'
+        +    '</div>'
+        +    '<button type="button" class="tt3-close" id="tt3-close-btn"></button>'
+        +  '</div>'
+        +  '<div class="tt3-body">'
+        +    '<div class="tt3-status" id="tt3-status"></div>'
+        +    '<div class="tt3-actions" id="tt3-actions"></div>'
+        +    '<div class="tt3-section-title" id="tt3-parts-title">Participants</div>'
+        +    '<div class="tt3-participants" id="tt3-parts"></div>'
+        +    '<div class="tt3-section-title" id="tt3-bracket-title">Bracket</div>'
+        +    '<div class="tt3-bracket" id="tt3-bracket"></div>'
+        +  '</div>'
+        +'</div>';
+      document.body.appendChild(ov);
+      ov.addEventListener('click',function(e){ if(e.target===ov) close(); });
+      _qs('tt3-close-btn').addEventListener('click',close);
+      _qs('tt3-close-btn').textContent='✕ '+_t('ttClose');
+      return ov;
+    }
+
+    function _renderActions(){
+      var box=_qs('tt3-actions'); if(!box) return;
+      box.innerHTML='';
+      var mid=_myId();
+      var iAmIn=_data.participants.some(function(p){ return p.id===mid; });
+      var iAmCreator=(_data.createdBy===mid);
+      if(_data.status==='lobby'){
+        var b1=document.createElement('button'); b1.type='button'; b1.className='tt3-btn';
+        b1.textContent=iAmIn?_t('ttUnregister'):_t('ttRegister');
+        if(iAmIn) b1.classList.add('ghost');
+        b1.addEventListener('click',function(){ iAmIn?unregister():register(); });
+        box.appendChild(b1);
+        if(iAmCreator || _data.participants.length===0){
+          var b2=document.createElement('button'); b2.type='button'; b2.className='tt3-btn';
+          b2.textContent=_t('ttStart');
+          b2.disabled=_data.participants.length<2;
+          b2.addEventListener('click',start);
+          box.appendChild(b2);
+        }
+      }else if(_data.status==='active'){
+        var my=_findMyMatch();
+        if(my){
+          var bJoin=document.createElement('button'); bJoin.type='button'; bJoin.className='tt3-btn';
+          bJoin.textContent='⚔ '+_t('ttJoinMatch');
+          bJoin.addEventListener('click',function(){ joinMyMatch(); });
+          box.appendChild(bJoin);
+        }
+      }
+      // Reset (créateur uniquement, ou solo)
+      if(iAmCreator || _data.participants.length<=1){
+        var bR=document.createElement('button'); bR.type='button'; bR.className='tt3-btn ghost';
+        bR.textContent=_t('ttReset');
+        bR.addEventListener('click',function(){
+          if(confirm(_t('ttResetConfirm'))) reset();
+        });
+        box.appendChild(bR);
+      }
+    }
+
+    function _renderParts(){
+      var box=_qs('tt3-parts'); if(!box) return;
+      box.innerHTML='';
+      var mid=_myId();
+      if(_data.participants.length===0){
+        var e=document.createElement('div'); e.className='tt3-empty'; e.textContent=_t('ttEmpty');
+        box.appendChild(e); return;
+      }
+      _data.participants.forEach(function(p){
+        var c=document.createElement('span'); c.className='tt3-chip'+(p.id===mid?' me':'');
+        c.innerHTML='<span class="tt3-chip-ava">'+_esc((p.name||'?').charAt(0).toUpperCase())+'</span>'+_esc(p.name||'?');
+        box.appendChild(c);
+      });
+    }
+
+    function _roundName(idx,total){
+      var rem=total-idx;
+      if(rem===1) return _t('ttRoundFinal');
+      if(rem===2) return _t('ttRoundSemi');
+      if(rem===3) return _t('ttRoundQuart');
+      return _t('ttRoundN',{n:idx+1});
+    }
+
+    function _renderBracket(){
+      var box=_qs('tt3-bracket'); if(!box) return;
+      box.innerHTML='';
+      if(!_data.bracket || _data.bracket.length===0){
+        var e=document.createElement('div'); e.className='tt3-empty'; e.textContent=_t('ttEmpty');
+        box.appendChild(e); return;
+      }
+      var mid=_myId();
+      _data.bracket.forEach(function(round,rIdx){
+        var rEl=document.createElement('div'); rEl.className='tt3-round';
+        var t=document.createElement('div'); t.className='tt3-round-title'; t.textContent=_roundName(rIdx,_data.bracket.length);
+        rEl.appendChild(t);
+        round.forEach(function(m,mIdx){
+          var mEl=document.createElement('div'); mEl.className='tt3-match';
+          var isLive=(rIdx===_data.currentRound && m.status!=='done' && m.p1 && m.p2 && m.p1.id && m.p2.id);
+          var mine=((m.p1&&m.p1.id===mid)||(m.p2&&m.p2.id===mid));
+          if(isLive) mEl.classList.add('live');
+          if(mine && _data.status==='active') mEl.classList.add('mine','clickable');
+          else if(isLive) mEl.classList.add('clickable');
+          function row(p,isW,isL){
+            var r=document.createElement('div'); r.className='tt3-mp'+(isW?' winner':'')+(isL?' loser':'');
+            if(p && p._bye) r.classList.add('bye');
+            var a=document.createElement('span'); a.className='tt3-mp-ava';
+            a.textContent=(p && p.name)?p.name.charAt(0).toUpperCase():'?';
+            var n=document.createElement('span'); n.className='tt3-mp-name';
+            n.textContent=(p?(p._bye?_t('ttBye'):(p.name||_t('ttTbd'))):_t('ttTbd'));
+            r.appendChild(a); r.appendChild(n);
+            if(p && p.id===mid){ var tag=document.createElement('span'); tag.className='tt3-mp-tag'; tag.textContent='•YOU'; r.appendChild(tag); }
+            return r;
+          }
+          var p1W=!!(m.winner && m.p1 && m.winner.id===m.p1.id);
+          var p2W=!!(m.winner && m.p2 && m.winner.id===m.p2.id);
+          mEl.appendChild(row(m.p1,p1W,p2W && !p1W && m.status==='done'));
+          mEl.appendChild(row(m.p2,p2W,p1W && !p2W && m.status==='done'));
+          if(mine && _data.status==='active' && m.status!=='done'){
+            mEl.addEventListener('click',function(){ joinMyMatch(); });
+          }else if(isLive){
+            mEl.addEventListener('click',function(){ spectateMatch(rIdx,mIdx); });
+          }
+          rEl.appendChild(mEl);
+        });
+        box.appendChild(rEl);
+      });
+    }
+
+    function _renderStatus(){
+      var s=_qs('tt3-status'), sub=_qs('tt3-sub'), title=_qs('tt3-title-txt');
+      if(title) title.textContent=_t('ttTitle');
+      if(!s) return;
+      s.classList.remove('live','warn');
+      if(_data.status==='lobby'){
+        s.textContent=_t('ttSubLobby');
+        if(sub) sub.textContent=_data.participants.length+' joueurs';
+      }else if(_data.status==='active'){
+        var tot=_data.bracket.length;
+        s.classList.add('live');
+        s.textContent=_t('ttSubLive',{r:_data.currentRound+1,tot:tot});
+        if(sub) sub.textContent=_data.participants.length+' joueurs';
+      }else if(_data.status==='done'){
+        s.textContent=_t('ttSubDone',{w:(_data.champion&&_data.champion.name)||'?'});
+        if(sub) sub.textContent='';
+      }
+    }
+
+    function _render(){
+      _ensureOverlay();
+      _renderStatus(); _renderActions(); _renderParts(); _renderBracket();
+      // Sync legacy overlays pour cohérence
+      try{
+        var legacy=_qs('tournament-status-msg');
+        if(legacy) legacy.textContent=(_qs('tt3-status')||{}).textContent||'';
+      }catch(_){}
+    }
+
+    function open(){ _ensureOverlay().classList.add('visible'); _render(); }
+    function close(){ var ov=_qs('tt3-overlay'); if(ov) ov.classList.remove('visible'); }
+
+    // ── Actions ─────────────────────────────────────────────────────────
+    function register(){
+      var id=_myId(), nm=_myName();
+      if(!id){ _toast('Identifiant joueur introuvable.',2000); return; }
+      _mutateOnServer(function(srv){
+        if(srv.status!=='lobby'){ _toast(_t('ttHostOnly'),1800); return null; }
+        if(srv.participants.some(function(p){ return p.id===id; })) return null;
+        if(srv.participants.length===0){ srv.createdBy=id; srv.id=srv.id||('t_'+Date.now().toString(36)); }
+        srv.participants.push({id:id,name:nm});
+        return srv;
+      }).then(function(){ _toast(_t('ttRegistered'),1800); _vib([40,20,40]); });
+    }
+    function unregister(){
+      var id=_myId();
+      _mutateOnServer(function(srv){
+        if(srv.status!=='lobby') return null;
+        srv.participants=srv.participants.filter(function(p){ return p.id!==id; });
+        if(srv.createdBy===id){ srv.createdBy=srv.participants[0]?srv.participants[0].id:null; }
+        return srv;
+      }).then(function(){ _toast(_t('ttUnregistered'),1500); });
+    }
+    function start(){
+      _mutateOnServer(function(srv){
+        if(srv.status==='active' || srv.status==='done'){ _toast(_t('ttAlreadyStarted'),1800); return null; }
+        if(srv.participants.length<2){ _toast(_t('ttMinPlayers'),1800); return null; }
+        srv.status='active'; srv.currentRound=0;
+        srv.bracket=_genBracket(srv.participants);
+        // Propagation locale sur srv
+        var save=_data; _data=srv; _propagate(); _data=save;
+        return srv;
+      }).then(function(){ _toast(_t('ttStarted'),2000); _vib([60,30,90]); _checkReady(); });
+    }
+    function reset(){
+      _mutateOnServer(function(){ return _empty(); });
+    }
+
+    async function joinMyMatch(){
+      var my=_findMyMatch();
+      if(!my){ _toast(_t('ttNoOpp'),1600); return; }
+      var opp=my.opp;
+      if(!opp || !opp.id || opp._bye){
+        // Auto-advance BYE
+        reportWinnerLocal(my.round,my.idx, (_data.bracket[my.round][my.idx].p1.id===_myId())?1:2);
+        return;
+      }
+      var code=_matchRoomCode(my.round,my.idx);
+      close();
+      try{
+        if(typeof window.onlineConnectToRoom==='function'){
+          await window.onlineConnectToRoom(code,true);
+        }else if(typeof window.onlineConnectToRoom_Back4App==='function'){
+          await window.onlineConnectToRoom_Back4App(code,true);
+        }
+        _toast('🎯 '+_t('ttRoomToast')+' '+code,2200);
+      }catch(e){
+        _toast(_t('ttRoomError')+' '+(e&&e.message||e),2500);
+      }
+    }
+
+    function spectateMatch(rIdx,mIdx){
+      var m=_data.bracket[rIdx] && _data.bracket[rIdx][mIdx]; if(!m) return;
+      var code=_matchRoomCode(rIdx,mIdx);
+      close();
+      try{
+        var inp=_qs('online-room-code'); if(inp) inp.value=code;
+        var jb=_qs('online-join-room'); if(jb) jb.click();
+        else if(typeof window.onlineConnectToRoom==='function') window.onlineConnectToRoom(code,false);
+      }catch(_){}
+    }
+
+    function reportWinnerLocal(rIdx,mIdx,slot){
+      _mutateOnServer(function(srv){
+        var mm=srv.bracket && srv.bracket[rIdx] && srv.bracket[rIdx][mIdx];
+        if(!mm) return null;
+        if(mm.status==='done') return null; // déjà reporté (l'adversaire a été plus rapide)
+        mm.winner=(slot===1)?mm.p1:mm.p2; mm.status='done';
+        var save=_data; _data=srv; _propagate(); _data=save;
+        return srv;
+      });
+    }
+
+    // Hook : signale fin de match → si on est dans un match de tournoi, reporte le winner
+    function _checkAutoReport(){
+      try{
+        if(_data.status!=='active') return;
+        var my=_findMyMatch(); if(!my) return;
+        // Détecte fin de partie online
+        var st=null;
+        try{ st=window.state; }catch(_){}
+        if(!st || !st.winner) return;
+        // Vérifier qu'on est dans le salon du tournoi (code attendu)
+        var expectedCode=_matchRoomCode(my.round,my.idx);
+        var curRoom=(window.online && window.online.room)||'';
+        if(curRoom !== expectedCode) return;
+        var myRole=(window.online && window.online.role) || window.humanPlayerId;
+        if(!myRole) return;
+        var iWon=(st.winner===myRole);
+        var winnerSlot=(my.match.p1 && my.match.p1.id===_myId())
+                     ? (iWon?1:2)
+                     : (iWon?2:1);
+        // Évite double report
+        if(my.match.status==='done') return;
+        reportWinnerLocal(my.round,my.idx,winnerSlot);
+        if(iWon){ _toast(_t('ttYouWon'),2400); _vib([80,40,120]); }
+        else    { _toast(_t('ttYouLost'),2400); }
+        if(_data.status==='done' && _data.champion){
+          setTimeout(function(){ _toast(_t('ttChampion',{w:_data.champion.name}),3500); open(); },800);
+        }
+      }catch(_){}
+    }
+
+    function _checkReady(){
+      if(_data.status!=='active') return;
+      var my=_findMyMatch(); if(!my) return;
+      var key=_data.id+':R'+my.round+'M'+my.idx;
+      if(_readyShownFor===key) return;
+      _readyShownFor=key;
+      if(!my.opp || my.opp._bye) return; // BYE auto-géré
+      _showReadyBanner(my);
+    }
+
+    function _showReadyBanner(my){
+      var b=_qs('tt3-ready-banner');
+      if(!b){
+        b=document.createElement('div'); b.id='tt3-ready-banner';
+        b.innerHTML='<span class="tt3-rb-ico">🎯</span>'
+                   +'<div class="tt3-rb-body"><div class="tt3-rb-title"></div><div class="tt3-rb-sub"></div></div>'
+                   +'<button type="button" class="tt3-rb-btn"></button>';
+        document.body.appendChild(b);
+      }
+      b.querySelector('.tt3-rb-title').textContent=_t('ttReadyTitle');
+      b.querySelector('.tt3-rb-sub').textContent=_t('ttReadySub',{opp:(my.opp&&my.opp.name)||'?',r:my.round+1});
+      var btn=b.querySelector('.tt3-rb-btn');
+      btn.textContent=_t('ttReadyBtn');
+      btn.onclick=function(){ b.classList.remove('visible'); joinMyMatch(); };
+      b.classList.add('visible'); _vib([40,30,40,30,80]);
+      setTimeout(function(){ b.classList.remove('visible'); },15000);
+    }
+
+    // ── Bind aux boutons existants ──────────────────────────────────────
+    function _bindLegacy(){
+      // FAB tournoi
+      var fab=_qs('tournament-fab');
+      if(fab){
+        fab.onclick=function(e){ e&&e.preventDefault&&e.preventDefault(); open(); };
+        fab.hidden=false;
+      }
+      // Bouton "Créer un tournoi" du lobby online
+      var c=_qs('ol-create-tournament-btn');
+      if(c){ c.onclick=function(e){ e&&e.preventDefault&&e.preventDefault(); open(); register(); }; }
+      // Boutons overlay legacy
+      var lr=_qs('tournament-register-btn'); if(lr) lr.onclick=function(){ register(); open(); };
+      var ls=_qs('tournament-start-btn');    if(ls) ls.onclick=function(){ start(); open(); };
+      var lc=_qs('tournament-close');        if(lc) lc.onclick=function(){
+        var lo=_qs('tournament-overlay'); if(lo) lo.hidden=true;
+      };
+      // Bouton play tournoi si présent
+      var bt=_qs('play-tournament-btn');
+      if(bt){ bt.addEventListener('click',function(e){ e&&e.preventDefault&&e.preventDefault(); open(); }); }
+    }
+
+    // Override de l'API publique TiddasTournament pour rediriger vers V3
+    function _overrideLegacyAPI(){
+      try{
+        if(!window.TiddasTournament) window.TiddasTournament={};
+        window.TiddasTournament.open  = open;
+        window.TiddasTournament.close = close;
+        window.TiddasTournament.register = function(){ register(); open(); };
+        window.TiddasTournament.start = function(){ start(); open(); };
+        window.TiddasTournament.applyFromServer = applyFromServer;
+        window.TiddasTournament.setWinner = function(r,i,slot){ reportWinnerLocal(r,i,slot); };
+        // Cache l'overlay legacy pour éviter le double rendu
+        var lo=_qs('tournament-overlay'); if(lo){ lo.style.display='none'; }
+      }catch(_){}
+    }
+
+    function init(){
+      if(_initDone) return; _initDone=true;
+      _load();
+      _ensureOverlay();
+      _bindLegacy();
+      _overrideLegacyAPI();
+      // Polling : surveille fin de match + bannière ready
+      _poll=setInterval(function(){
+        _checkAutoReport();
+        _checkReady();
+      },1200);
+      // Re-bind périodique (les autres patches recréent parfois les boutons)
+      setInterval(_bindLegacy,4000);
+      // Sync depuis serveur quand on est dans un match
+      setInterval(function(){
+        if(!_parseReady()||!_matchId()) return;
+        _getMatch(_matchId()).then(function(m){
+          var td=m.get('tournament');
+          if(td) applyFromServer(td);
+        }).catch(function(){});
+      },3500);
+    }
+
+    return { init:init, open:open, close:close, register:register, start:start,
+             reset:reset, joinMyMatch:joinMyMatch, applyFromServer:applyFromServer,
+             setWinner:reportWinnerLocal, getData:function(){ return JSON.parse(JSON.stringify(_data)); } };
+  })();
+
+  // ════════════════════════════════════════════════════════════════════
+  // BOOT
+  // ════════════════════════════════════════════════════════════════════
+  function boot(){
+    try{ RelayV3.init(); }catch(e){ console.warn('[tpatch16 Relay]',e); }
+    try{ TournamentV3.init(); }catch(e){ console.warn('[tpatch16 Tournament]',e); }
+    window.TiddasRelayV3=RelayV3;
+    window.TiddasTournamentV3=TournamentV3;
+    console.log('[Tiddas] Patch v16 actif — Relais auto + Tournois v3');
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot);
+  else setTimeout(boot,300);
 })();
 </script>
 </body></html>
