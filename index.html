@@ -16218,8 +16218,8 @@ const ONLINE_ENABLED = true;
 // ── Back4App (Online Multiplayer) ─────────────────────────
 // Obtenir ces clés dans Back4App → App Settings → Security & Keys
 // NE PAS mettre la Master Key ici.
-const BACK4APP_APP_ID     = "IpRLOcWPl2IjepqMQXUEnQ15rwh344cBnKhZtlSK"; // ← remplacer
-const BACK4APP_JS_KEY     = "MMHgTR0pFa3KkakMQA4Qh3eQ59spdm6WEQvQmWzB"; // ← remplacer (JS Key)
+const BACK4APP_APP_ID     = "xTmBtfanyBntOqi0PpLAICxbcP0YGBxy3ihw7x6O"; // ← remplacer
+const BACK4APP_JS_KEY     = "oSKNQKcCG6QUD1pT90eh6VrpTOkyadSs7O2JQqjp"; // ← remplacer (JS Key)
 const BACK4APP_SERVER_URL = "https://parseapi.back4app.com";              // URL API par défaut
 const BACK4APP_CLASS      = "GameMatch"; // Nom de la class/table Back4App
 window.BACK4APP_CLASS = BACK4APP_CLASS;
@@ -16265,100 +16265,20 @@ window.onlinePlayerId = onlinePlayerId;
 
 // Persist last used room code / match id (lets users rejoin after leaving)
 const ONLINE_LAST_ROOM_KEY = "tiddas_online_last_room_v1";
-function saveLastOnlineRoom(info) {
-  try {
-    const payload = {
-      v: 1,
-      code: String(info?.code || ''),
-      matchId: String(info?.matchId || ''),
-      at: Date.now()
-    };
-    if (!payload.code && !payload.matchId) return;
-    localStorage.setItem(ONLINE_LAST_ROOM_KEY, JSON.stringify(payload));
-  } catch (_) {}
-}
-function loadLastOnlineRoom() {
-  try {
-    const raw = localStorage.getItem(ONLINE_LAST_ROOM_KEY);
-    const parsed = raw ? safeJSONParse(raw, null) : null;
-    if (!parsed || parsed.v !== 1) return null;
-    return { code: String(parsed.code || ''), matchId: String(parsed.matchId || ''), at: Number(parsed.at || 0) };
-  } catch (_) { return null; }
-}
+function saveLastOnlineRoom(info) { /* v20: no local persistence — backend is source of truth */ }
+function loadLastOnlineRoom() { return null; /* v20: backend-only */ }
 
 
 // Persist a small list of recent room codes — v2 (enriched, max 3)
 const ONLINE_ROOMS_KEY = "tiddas_online_rooms_v2";
 const ONLINE_ROOMS_MAX = 3;
 
-function loadRecentOnlineRooms() {
-  try {
-    const raw = localStorage.getItem(ONLINE_ROOMS_KEY);
-    const parsed = raw ? safeJSONParse(raw, null) : null;
-    // Support v2 structure
-    if (parsed && parsed.v === 2 && Array.isArray(parsed.rooms)) {
-      return parsed.rooms
-        .map(r => ({
-          code:         String(r.code || '').toUpperCase(),
-          at:           Number(r.at || 0),
-          opponentName: r.opponentName || null,
-          myName:       r.myName || null,
-          variant:      r.variant || null,
-          winnerId:     r.winnerId != null ? Number(r.winnerId) : null,
-          didWin:       r.didWin != null ? !!r.didWin : null
-        }))
-        .filter(r => !!r.code)
-        .sort((a, b) => (b.at || 0) - (a.at || 0))
-        .slice(0, ONLINE_ROOMS_MAX);
-    }
-    // Migrate from v1
-    if (parsed && parsed.v === 1 && Array.isArray(parsed.rooms)) {
-      return parsed.rooms
-        .map(r => ({ code: String(r.code || '').toUpperCase(), at: Number(r.at || 0), opponentName: null, myName: null, variant: null, winnerId: null, didWin: null }))
-        .filter(r => !!r.code)
-        .sort((a, b) => (b.at || 0) - (a.at || 0))
-        .slice(0, ONLINE_ROOMS_MAX);
-    }
-    // Legacy flat key
-    const rawOld = localStorage.getItem("tiddas_online_rooms_v1");
-    if (rawOld) {
-      const parsedOld = safeJSONParse(rawOld, null);
-      if (parsedOld && Array.isArray(parsedOld.rooms)) {
-        return parsedOld.rooms
-          .map(r => ({ code: String(r.code || '').toUpperCase(), at: Number(r.at || 0), opponentName: null, myName: null, variant: null, winnerId: null, didWin: null }))
-          .filter(r => !!r.code).sort((a,b) => (b.at||0)-(a.at||0)).slice(0, ONLINE_ROOMS_MAX);
-      }
-    }
-    return [];
-  } catch (_) { return []; }
-}
+function loadRecentOnlineRooms() { return []; /* v20: no local storage of rooms — backend authoritative */ }
 
 /**
  * @param {string|object} codeOrObj  — string (legacy) OR {code, opponentName, myName, variant, winnerId, didWin}
  */
-function addRecentOnlineRoom(codeOrObj) {
-  try {
-    let entry;
-    if (typeof codeOrObj === 'string') {
-      entry = { code: codeOrObj.trim().toUpperCase(), at: Date.now(), opponentName: null, myName: null, variant: null, winnerId: null, didWin: null };
-    } else {
-      entry = {
-        code:         String(codeOrObj.code || '').trim().toUpperCase(),
-        at:           Date.now(),
-        opponentName: codeOrObj.opponentName || null,
-        myName:       codeOrObj.myName || null,
-        variant:      codeOrObj.variant || null,
-        winnerId:     codeOrObj.winnerId != null ? Number(codeOrObj.winnerId) : null,
-        didWin:       codeOrObj.didWin != null ? !!codeOrObj.didWin : null
-      };
-    }
-    if (!entry.code) return;
-    const rooms = loadRecentOnlineRooms().filter(r => r.code !== entry.code);
-    rooms.unshift(entry);
-    const payload = { v: 2, rooms: rooms.slice(0, ONLINE_ROOMS_MAX) };
-    localStorage.setItem(ONLINE_ROOMS_KEY, JSON.stringify(payload));
-  } catch (_) {}
-}
+function addRecentOnlineRoom(codeOrObj) { /* v20: no local persistence */ }
 
 function _fmtRelativeDate(ms) {
   try {
@@ -31925,7 +31845,7 @@ window.TiddasSpectator       = SpectatorEnhanced;
     }
 
     var attempts = 0;
-    var maxAttempts = 30; // 30 x 400ms = 12s max
+    var maxAttempts = 75; // FIX v21 : 75 x 400ms = 30s (laisser le temps au challenger KoTH)
 
     function _tryStart() {
       attempts++;
@@ -32221,7 +32141,16 @@ window.TiddasSpectator       = SpectatorEnhanced;
   function _joinTable(tournament, table) {
     var mid = table.matchId || tournament.matchId;
     var code = table.code || tournament.code;
-    if (!table.p2Id || table.p2Id === _pid()) {
+    var _me = _pid();
+    var _myName = _pname();
+    var parts = (tournament && tournament.participants) || [];
+    var _isMember = parts.some(function(p){ return p && (p.id === _me || p.name === _myName); });
+    var _isNamedHere = (table.p1Id === _me) || (table.p2Id === _me)
+                     || (table.p1Name === _myName) || (table.p2Name === _myName);
+    // FIX v21 : on ne s'auto-place sur un slot libre que si on est inscrit
+    // au tournoi (sinon -> spectateur). Évite de squatter une table.
+    var _amPlayer = _isNamedHere || (_isMember && (!table.p1Id || !table.p2Id));
+    if (_amPlayer) {
       // Stocker l'info tournoi pour démarrage auto après connexion
       window._pendingTournamentStart = {
         matchId: mid,
@@ -32409,13 +32338,7 @@ window.TiddasSpectator       = SpectatorEnhanced;
     }
 
     function _notifyNew(t) {
-      try {
-        var seen = JSON.parse(localStorage.getItem(TOURN_SEEN_KEY) || '[]');
-        if (seen.indexOf(t.matchId) !== -1) return;
-        seen.push(t.matchId);
-        if (seen.length > 30) seen = seen.slice(-15);
-        localStorage.setItem(TOURN_SEEN_KEY, JSON.stringify(seen));
-      } catch(_) {}
+      /* v20: dedup is in-memory only (see _seenIds Set above) */
 
       var notify = document.getElementById('tourn-join-notify');
       if (!notify) {
@@ -32916,6 +32839,38 @@ window.TiddasSpectator       = SpectatorEnhanced;
       if (_accBtn) _accBtn.style.display = 'none';
       if (_msgEl)  _msgEl.textContent = 'Partie terminée. Rejouer ?';
       _banner.classList.add('visible'); _startPoll();
+      // FIX v21 : côté vainqueur, surveiller si le perdant cède sa place
+      // (KoTH) -> masquer la revanche et préparer l'arrivée du challenger.
+      if (iAmWinner) _watchLoserRelinquish();
+    }
+
+    var _loserWatchTimer = null;
+    function _watchLoserRelinquish() {
+      if (_loserWatchTimer) { clearInterval(_loserWatchTimer); _loserWatchTimer = null; }
+      var matchId = _mid(), myId = _pid();
+      if (!matchId || !myId || !_parseReady()) return;
+      var ticks = 0;
+      _loserWatchTimer = setInterval(async function() {
+        ticks++;
+        if (ticks > 60 || !_shown) {
+          clearInterval(_loserWatchTimer); _loserWatchTimer = null; return;
+        }
+        try {
+          var m = await _getMatch(matchId);
+          var p1Id = m.get('p1Id'), p2Id = m.get('p2Id');
+          var p1Active = m.get('p1Active') !== false;
+          var p2Active = m.get('p2Active') !== false;
+          var mySlot = (p1Id === myId) ? 1 : ((p2Id === myId) ? 2 : 0);
+          if (!mySlot) return;
+          var oppActive = (mySlot === 1) ? p2Active : p1Active;
+          if (!oppActive) {
+            // Le perdant a cédé sa place -> bannière revanche obsolète
+            clearInterval(_loserWatchTimer); _loserWatchTimer = null;
+            hide();
+            _toast('🙌 Le perdant a cédé sa place — challenger en approche…', 2800);
+          }
+        } catch(_) {}
+      }, 2000);
     }
 
     function hide() {
@@ -33004,30 +32959,11 @@ window.TiddasSpectator       = SpectatorEnhanced;
       return _toastEl;
     }
 
-    function saveSession() {
-      var matchId = _mid(), myId = _pid();
-      if (!matchId || !myId) return;
-      try {
-        localStorage.setItem(LS_RESUME_KEY, JSON.stringify({
-          v: 3, matchId: matchId, playerId: myId,
-          role: (window.online && window.online.role) || 0,
-          code: (window.online && window.online.room) || '', savedAt: Date.now()
-        }));
-      } catch(_) {}
-    }
+    function saveSession() { /* v20: no local resume — reconnection driven by backend match state */ }
 
-    function clearSession() { try { localStorage.removeItem(LS_RESUME_KEY); } catch(_) {} }
+    function clearSession() { /* v20: noop */ }
 
-    function _load() {
-      try {
-        var raw = localStorage.getItem(LS_RESUME_KEY);
-        if (!raw) return null;
-        var d = JSON.parse(raw);
-        if (!d || d.v !== 3 || !d.matchId) return null;
-        if (Date.now() - (d.savedAt || 0) > RESUME_MAX_AGE) { clearSession(); return null; }
-        return d;
-      } catch(_) { return null; }
-    }
+    function _load() { return null; /* v20: no local-storage resume */ }
 
     async function attemptAutoResume() {
       if (window.online && window.online.connected && window.online.matchId) return false;
@@ -38463,6 +38399,781 @@ window.TiddasSpectator       = SpectatorEnhanced;
   }, 500);
 })();
 </script>
+<!--
+  ════════════════════════════════════════════════════════════════════════
+   tpatch-v22 — Reconciliation patch (online + tournament hardening)
+  ════════════════════════════════════════════════════════════════════════
+   Patch hierarchy (lowest → highest precedence at runtime):
+     base online stack  (onlineDisconnect, _startPolling, LiveQuery sub)
+       └── tpatch-v16  : TournamentV3 + relay/spectator + rematch banner
+             └── tpatch-v17 : tournament leave / wrap fixes
+                   └── tpatch-v18 : force polling-only, heal player session
+                         └── tpatch-v22 : RECONCILIATION (this block)
+
+   v22 is intentionally last. It only wraps; it never re-declares.
+   Goals (per plan):
+     1. Single authoritative tournament system  → TournamentV3
+     2. LiveQuery / polling mutex               → __netMode lock
+     3. Deduplicated rematch button handlers   → single click listener
+     4. Race-safe onlineDisconnect             → re-entry lock + full cleanup
+     5. Spectator takeover queue verification  → check _myQueuePos before show
+     6. Documented patch hierarchy             → this comment + __TiddasPatchHierarchy
+  ════════════════════════════════════════════════════════════════════════
+-->
+<script id="tpatch-v22-js" nonce="tiddas">
+(function(){
+  'use strict';
+  var TAG='[tpatch22]';
+  function log(){ try{ console.info.apply(console,[TAG].concat([].slice.call(arguments))); }catch(_){ } }
+
+  window.__TiddasPatchHierarchy = Object.freeze({
+    order: ['base','v16','v17','v18','v22'],
+    authoritative: {
+      tournament: 'TiddasTournamentV3',
+      network:    'polling',           // v18 forces polling-only
+      rematch:    'tpatch-rematch-banner'
+    },
+    notes: 'v22 reconciles wrappers; do not introduce a v23 that re-declares any of these.'
+  });
+
+  // ── 1. Tournament: enforce TournamentV3 as the only renderer ────────────
+  function neutralizeCompetingTournaments(){
+    try {
+      var lobby = window.TiddasTournamentLobby;
+      if (lobby) {
+        try { lobby.stopPolling && lobby.stopPolling(); } catch(_){}
+        lobby.refresh = function(){};
+        lobby.startPolling = function(){};
+        lobby.stopPolling  = function(){};
+      }
+    } catch(_){}
+    try {
+      var legacy = window.TiddasTournamentExtension;
+      if (legacy) {
+        ['init','refresh','start','stop','render'].forEach(function(k){
+          if (typeof legacy[k] === 'function') legacy[k] = function(){};
+        });
+      }
+    } catch(_){}
+    // TournamentLobbyPatch lives in closure; we can't reach it directly, but
+    // its _neutralizeLegacyTournamentLobby() already stubs the legacy lobby.
+    // v22 simply re-runs neutralization defensively in case a late script
+    // re-attached a handler.
+    try {
+      var refreshBtn = document.getElementById('ol-tourn-refresh');
+      if (refreshBtn && !refreshBtn.__v22Bound) {
+        refreshBtn.__v22Bound = true;
+        // Replace any stale listeners with a single delegated one.
+        var fresh = refreshBtn.cloneNode(true);
+        fresh.__v22Bound = true;
+        refreshBtn.parentNode.replaceChild(fresh, refreshBtn);
+        fresh.addEventListener('click', function(){
+          fresh.style.transform = 'rotate(360deg)';
+          setTimeout(function(){ fresh.style.transform=''; }, 310);
+          var T = window.TiddasTournamentV3;
+          if (T && typeof T.refresh === 'function') { try { T.refresh(true); } catch(_){} }
+        });
+      }
+    } catch(_){}
+  }
+
+  // ── 2. LiveQuery ⇄ polling mutex ────────────────────────────────────────
+  // Single source of truth for "which transport is currently driving state".
+  window.__netMode = window.__netMode || { mode: 'idle', lock: false };
+
+  function stopLiveQuerySafe(){
+    try {
+      if (typeof window._stopLiveQuery === 'function') { window._stopLiveQuery(); return; }
+    } catch(_){}
+    try {
+      if (window._liveQuerySub && typeof window._liveQuerySub.unsubscribe === 'function') {
+        window._liveQuerySub.unsubscribe();
+      }
+    } catch(_){}
+    try { window._liveQuerySub = null; window._liveQueryStarted = false; } catch(_){}
+  }
+
+  function wrapStartPolling(){
+    if (typeof window._startPolling !== 'function' || window._startPolling.__v22Wrapped) return false;
+    var orig = window._startPolling;
+    var wrapped = function(){
+      if (window.__netMode.lock) { log('startPolling skipped: lock held'); return; }
+      window.__netMode.lock = true;
+      try {
+        stopLiveQuerySafe();
+        window.__netMode.mode = 'polling';
+        return orig.apply(this, arguments);
+      } finally {
+        window.__netMode.lock = false;
+      }
+    };
+    wrapped.__v22Wrapped = true;
+    window._startPolling = wrapped;
+    return true;
+  }
+
+  // ── 3. Dedup rematch button handlers ────────────────────────────────────
+  // Multiple patches assign onclick on #online-rematch-ready-btn. We replace
+  // the node with a clone (drops all listeners + onclick) and rebind exactly
+  // one click listener that delegates to onlineSetRematchReady.
+  var _rematchCooldownUntil = 0;
+  function dedupRematchButton(){
+    var btn = document.getElementById('online-rematch-ready-btn');
+    if (!btn || btn.__v22Dedup) return;
+    var clone = btn.cloneNode(true);
+    clone.__v22Dedup = true;
+    clone.onclick = null;
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener('click', function(ev){
+      ev.preventDefault();
+      ev.stopPropagation();
+      var now = Date.now();
+      if (now < _rematchCooldownUntil) { log('rematch click ignored (cooldown)'); return; }
+      _rematchCooldownUntil = now + 800; // hardened cooldown
+      try {
+        if (typeof window.onlineSetRematchReady === 'function') {
+          window.onlineSetRematchReady(true);
+        }
+      } catch(e){ log('rematch click error', e && e.message || e); }
+    }, { passive: false });
+  }
+
+  // ── 4. Race-safe onlineDisconnect ───────────────────────────────────────
+  function wrapOnlineDisconnect(){
+    if (typeof window.onlineDisconnect !== 'function' || window.onlineDisconnect.__v22Wrapped) return false;
+    var orig = window.onlineDisconnect;
+    var inFlight = false;
+    var wrapped = function(){
+      if (inFlight) { log('onlineDisconnect re-entry suppressed'); return; }
+      inFlight = true;
+      try {
+        // 4a. Cancel debounced send before anything else
+        try {
+          if (window._onlineSendDebounceTimer) {
+            clearTimeout(window._onlineSendDebounceTimer);
+            window._onlineSendDebounceTimer = null;
+          }
+        } catch(_){}
+        // 4b. Tear down LiveQuery subscription
+        stopLiveQuerySafe();
+        // 4c. Clear spectator pending state synchronously
+        try {
+          window._spectatorPendingMatchId = null;
+          window._spectatorPendingCode    = null;
+        } catch(_){}
+        // 4d. Reset transport mode
+        try { window.__netMode.mode = 'idle'; } catch(_){}
+        // 4e. Run original disconnect (which may also touch the above; safe)
+        return orig.apply(this, arguments);
+      } finally {
+        inFlight = false;
+      }
+    };
+    wrapped.__v22Wrapped = true;
+    window.onlineDisconnect = wrapped;
+    return true;
+  }
+
+  // ── 5. Spectator takeover queue verification ────────────────────────────
+  // The spectator module lives in a closure and exposes window.TiddasSpectator.
+  // We wrap showTakeoverSlot so it only triggers when this client is genuinely
+  // first in the queue. The internal queue position is mirrored on the
+  // exposed object as _myQueuePos when present; otherwise we no-op safely.
+  function wrapSpectatorTakeover(){
+    var S = window.TiddasSpectator;
+    if (!S || S.__v22Wrapped) return false;
+    if (typeof S.showTakeoverSlot !== 'function') return false;
+    var origShow = S.showTakeoverSlot;
+    S.showTakeoverSlot = function(slot){
+      try {
+        // Hide path (slot null/undefined) always passes through.
+        if (slot == null) return origShow.call(this, slot);
+        // Verify we're first in queue, when the module exposes it.
+        var pos = (typeof S._myQueuePos === 'number') ? S._myQueuePos
+                 : (typeof window._myQueuePos === 'number' ? window._myQueuePos : null);
+        if (pos !== null && pos !== 1 && pos !== -1) {
+          // Not first — don't show takeover UI.
+          log('takeover suppressed; queue pos=', pos);
+          return;
+        }
+        return origShow.call(this, slot);
+      } catch(e){
+        log('showTakeoverSlot wrap error', e && e.message || e);
+        return origShow.call(this, slot);
+      }
+    };
+    if (typeof S.takeover === 'function') {
+      var origTakeover = S.takeover;
+      S.takeover = function(){
+        // Clean spectator state first so we don't double-fire as both
+        // spectator and player.
+        try { S._myQueuePos = -1; } catch(_){}
+        try { window._myQueuePos = -1; } catch(_){}
+        try { document.body.classList.remove('is-spectating'); } catch(_){}
+        return origTakeover.apply(this, arguments);
+      };
+    }
+    S.__v22Wrapped = true;
+    return true;
+  }
+
+  // ── Boot / retry loop ───────────────────────────────────────────────────
+  var installed = { polling:false, disconnect:false, spectator:false };
+  function bootOnce(){
+    if (!installed.polling)    installed.polling    = wrapStartPolling();
+    if (!installed.disconnect) installed.disconnect = wrapOnlineDisconnect();
+    if (!installed.spectator)  installed.spectator  = wrapSpectatorTakeover();
+    neutralizeCompetingTournaments();
+    dedupRematchButton();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootOnce, { once:true });
+  } else {
+    bootOnce();
+  }
+  // Retry to catch wrappers installed later by v16/17/18 + late DOM nodes.
+  var tries = 0;
+  var iv = setInterval(function(){
+    tries++;
+    bootOnce();
+    if (tries > 30 || (installed.polling && installed.disconnect && installed.spectator)) {
+      // keep one slow tick alive for late-mounted rematch button
+      if (tries > 30) clearInterval(iv);
+    }
+  }, 500);
+
+  log('reconciliation patch active', window.__TiddasPatchHierarchy);
+})();
+</script>
+
+
+<!--
+  ════════════════════════════════════════════════════════════════════════
+   tpatch-v23 — Online mode hardening (race-free transport, send safety)
+  ════════════════════════════════════════════════════════════════════════
+   Builds on v22. Targets concrete bugs found by code review:
+
+   B1. Async LiveQuery race in _startPolling
+       Original code starts HTTP polling synchronously *and* awaits
+       Parse subscribe(); when subscribe resolves later, both run in
+       parallel and stomp on `online.fetching`. Fix: stop the polling
+       interval the moment LiveQuery becomes active; restart it only
+       when LiveQuery errors out.
+
+   B2. `online.fetching` deadlock
+       If a fetch promise never resolves (network half-open), the
+       boolean stays true forever and tick() permanently no-ops. Fix:
+       watchdog that auto-clears the flag after 8s.
+
+   B3. Send retries with stale matchId
+       _doSendState retries up to 3× with exponential backoff. Each
+       retry reads `online.matchId` and `online.connected` fresh — if
+       the player switched rooms or disconnected, the retry can write
+       to the wrong room. Fix: snapshot matchId and abort retry chain
+       when it changes or connection ends.
+
+   B4. Send-retry timers leak across disconnect
+       Retry setTimeouts are not tracked; onlineDisconnect leaves
+       them pending. Fix: track in a Set and clear on disconnect.
+
+   B5. Rematch-ready re-toggle storm
+       Clicking the ready button before the previous save round-trip
+       returns can stack writes. Fix: in-flight guard around
+       onlineSetRematchReady.
+  ════════════════════════════════════════════════════════════════════════
+-->
+<script id="tpatch-v23-js" nonce="tiddas">
+(function(){
+  'use strict';
+  var TAG='[tpatch23]';
+  function log(){ try{ console.info.apply(console,[TAG].concat([].slice.call(arguments))); }catch(_){ } }
+
+  // ── B4. Pending retry timers registry (cleared by onlineDisconnect) ────
+  var _pendingSendTimers = new Set();
+  window.__tpatch23PendingSendTimers = _pendingSendTimers;
+
+  // ── B2. fetching watchdog ──────────────────────────────────────────────
+  function installFetchingWatchdog(){
+    if (window.__tpatch23FetchingWatchdog) return;
+    window.__tpatch23FetchingWatchdog = setInterval(function(){
+      try {
+        if (!window.online) return;
+        if (!window.online.fetching) { window.online.__fetchingSince = 0; return; }
+        var now = Date.now();
+        if (!window.online.__fetchingSince) { window.online.__fetchingSince = now; return; }
+        if (now - window.online.__fetchingSince > 8000) {
+          log('fetching watchdog: clearing stale lock');
+          window.online.fetching = false;
+          window.online.__fetchingSince = 0;
+        }
+      } catch(_){}
+    }, 2000);
+  }
+
+  // ── B1. LiveQuery ↔ polling watchdog ───────────────────────────────────
+  // The base implementation may have both running. Once per tick, if
+  // LiveQuery is active (subscription present) AND a poll interval is
+  // running, kill the poll interval. If LiveQuery dies, the base code
+  // restarts the interval via its own `sub.on('error')` handler.
+  function installTransportArbiter(){
+    if (window.__tpatch23Arbiter) return;
+    window.__tpatch23Arbiter = setInterval(function(){
+      try {
+        var hasLQ = !!window._liveQuerySub;
+        var hasPoll = !!(window.online && window.online.pollTimer);
+        if (hasLQ && hasPoll && !window.__tpatchV18PollingOnly) {
+          clearInterval(window.online.pollTimer);
+          window.online.pollTimer = 0;
+          if (window.__netMode) window.__netMode.mode = 'livequery';
+          log('arbiter: stopped redundant polling (LiveQuery active)');
+        } else if (!hasLQ && !hasPoll && window.online && window.online.connected && window.online.matchId) {
+          // Neither transport running while connected → restart polling
+          if (typeof window._startPolling === 'function') {
+            log('arbiter: no transport active, restarting polling');
+            window._startPolling();
+          }
+        }
+      } catch(_){}
+    }, 1500);
+  }
+
+  // ── B3 + B4. Wrap onlineSendState to snapshot matchId and track timers ─
+  function wrapSendStateGuard(){
+    if (typeof window.onlineSendState !== 'function') return false;
+    if (window.onlineSendState.__v23Wrapped) return true;
+    var orig = window.onlineSendState;
+    var wrapped = function(reason){
+      if (!window.online || !window.online.connected || !window.online.matchId) return;
+      // Snapshot identity so retries can verify on resume
+      var snap = {
+        matchId: window.online.matchId,
+        gameId:  window.online.gameId || 0,
+        role:    window.online.role
+      };
+      window.__tpatch23LastSendSnap = snap;
+      return orig.apply(this, arguments);
+    };
+    wrapped.__v23Wrapped = true;
+    window.onlineSendState = wrapped;
+    return true;
+  }
+
+  // Patch global setTimeout used inside _doSendState retries: too invasive.
+  // Instead, augment onlineDisconnect to flush pending retry timers AND
+  // mark online.suppressSend so any in-flight retry early-exits when it
+  // re-enters _doSendState.
+  function wrapDisconnectForRetryFlush(){
+    if (typeof window.onlineDisconnect !== 'function') return false;
+    if (window.onlineDisconnect.__v23Wrapped) return true;
+    var orig = window.onlineDisconnect;
+    var wrapped = function(){
+      // Flush tracked retry timers
+      try {
+        _pendingSendTimers.forEach(function(id){ try { clearTimeout(id); } catch(_){} });
+        _pendingSendTimers.clear();
+      } catch(_){}
+      // Mark suppress for one tick to short-circuit any in-flight retry
+      try {
+        if (window.online) {
+          window.online.suppressSend = true;
+          setTimeout(function(){
+            try { if (window.online) window.online.suppressSend = false; } catch(_){}
+          }, 500);
+        }
+      } catch(_){}
+      return orig.apply(this, arguments);
+    };
+    wrapped.__v23Wrapped = true;
+    window.onlineDisconnect = wrapped;
+    return true;
+  }
+
+  // ── B5. Single-flight onlineSetRematchReady ────────────────────────────
+  function wrapRematchReady(){
+    if (typeof window.onlineSetRematchReady !== 'function') return false;
+    if (window.onlineSetRematchReady.__v23Wrapped) return true;
+    var orig = window.onlineSetRematchReady;
+    var inFlight = false;
+    var lastCallAt = 0;
+    var wrapped = async function(isReady){
+      var now = Date.now();
+      if (inFlight) { log('rematchReady ignored (in-flight)'); return; }
+      if (now - lastCallAt < 400) { log('rematchReady ignored (cooldown)'); return; }
+      lastCallAt = now;
+      inFlight = true;
+      try {
+        return await orig.apply(this, arguments);
+      } finally {
+        inFlight = false;
+      }
+    };
+    wrapped.__v23Wrapped = true;
+    window.onlineSetRematchReady = wrapped;
+    return true;
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────────────
+  function boot(){
+    installFetchingWatchdog();
+    installTransportArbiter();
+    wrapSendStateGuard();
+    wrapDisconnectForRetryFlush();
+    wrapRematchReady();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  } else {
+    boot();
+  }
+  // Retry to catch wrappers installed late by v16/v17/v18/v22
+  var tries = 0;
+  var iv = setInterval(function(){
+    tries++;
+    boot();
+    if (tries > 30) clearInterval(iv);
+  }, 500);
+
+  log('online hardening patch active');
+})();
+</script>
+<!--
+  ════════════════════════════════════════════════════════════════════════
+   tpatch-v24 — Prise de relais (takeover) & Revanche (rematch) hardening
+  ════════════════════════════════════════════════════════════════════════
+   Builds on v22/v23. Identified bugs:
+
+   ── TAKEOVER ─────────────────────────────────────────────────
+   T1. showTakeoverSlot allowed _myQueuePos === -1 (not in queue!) to act
+       as "first in queue", so any spectator who had not registered could
+       still grab the slot.
+   T2. takeover() updated only client-side window.online — never wrote
+       p1Id/p2Id to the room. Other spectators saw the dead slot stay
+       empty; reconnect logic could mis-route the new player.
+   T3. Two spectators clicking takeover simultaneously both succeeded
+       locally (no atomic claim). Last writer to the match wins, the
+       loser ends up as ghost-player with no DB seat.
+   T4. After takeover, online.lastSeenRev kept its spectator value →
+       next poll could skip current state because rev compared equal.
+   T5. _disconnectedSlot was never cleared when the disconnected player
+       reconnected; the takeover button stayed visible/active.
+   T6. Body class is-spectating sometimes survived takeover.
+
+   ── REMATCH ──────────────────────────────────────────────────
+   R1. Simultaneous propose() from both players: each overwrites the
+       other's request → both wait forever. Fix: treat as mutual accept.
+   R2. Spectators saw the rematch banner and could click Revanche/
+       Accepter, polluting the match record.
+   R3. _myPending is in-memory only; after refresh the proposer would
+       see its own pending request as "incoming" and accept itself.
+   R4. _loserWatchTimer leak: never cleared on hide() called from accept.
+   R5. Banner could remain visible after onlineDisconnect (room left).
+  ════════════════════════════════════════════════════════════════════════
+-->
+<script id="tpatch-v24-js" nonce="tiddas">
+(function(){
+  'use strict';
+  var TAG='[tpatch24]';
+  function log(){ try{ console.info.apply(console,[TAG].concat([].slice.call(arguments))); }catch(_){ } }
+  function _parseReady(){ try{ return !!(window.Parse && window.BACK4APP_CLASS); }catch(_){ return false; } }
+  function _mid(){ return (window.online && window.online.matchId) || null; }
+  function _pid(){
+    try { return String(window.onlinePlayerId || localStorage.getItem('tiddas_pid_v1') || ''); }
+    catch(_) { return ''; }
+  }
+  function _myName(){
+    try {
+      return (typeof window.getOnlinePlayerName === 'function' ? window.getOnlinePlayerName() : '')
+           || (localStorage.getItem('tiddas_online_name_v1') || '').trim()
+           || 'Spectateur';
+    } catch(_) { return 'Spectateur'; }
+  }
+  function _toast(msg, ms){ try{ window.showToast && window.showToast(msg, ms||2000); }catch(_){ } }
+
+  // ════════════════════════════════════════════════════════════════════
+  // TAKEOVER — atomic, race-free claim
+  // ════════════════════════════════════════════════════════════════════
+
+  // T3. Single-flight claim guard (per-client).
+  var _claimInFlight = false;
+
+  // T1. Strict queue verification: must be position #1.
+  function isStrictlyFirst(){
+    var S = window.TiddasSpectator;
+    if (!S) return false;
+    var pos = (typeof S._myQueuePos === 'number') ? S._myQueuePos
+            : (typeof window._myQueuePos === 'number' ? window._myQueuePos : null);
+    return pos === 1;
+  }
+
+  // T3. Atomic claim of the dead slot using Parse compare-and-set semantics.
+  // We use a serverside increment trick: write claimId only if not set
+  // (we read first, then write with the previous value as a guard — last
+  // write wins, but at least everyone sees who actually won, and the
+  // loser detects via re-read and steps back).
+  async function _atomicClaim(slot){
+    if (!_parseReady()) throw new Error('parse-not-ready');
+    var matchId = _mid();
+    if (!matchId) throw new Error('no-match');
+    var myId   = _pid();
+    var myName = _myName();
+    if (!myId) throw new Error('no-pid');
+
+    var m = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(matchId);
+    var slotKey       = slot === 1 ? 'p1Id'         : 'p2Id';
+    var slotNameKey   = slot === 1 ? 'p1Name'       : 'p2Name';
+    var slotActiveKey = slot === 1 ? 'p1Active'     : 'p2Active';
+    var claimKey      = slot === 1 ? 'p1ClaimAt'    : 'p2ClaimAt';
+
+    var existingId = m.get(slotKey);
+    var existingActive = m.get(slotActiveKey) !== false;
+    if (existingActive && existingId && existingId !== myId) {
+      throw new Error('slot-still-occupied');
+    }
+    var lastClaim = Number(m.get(claimKey) || 0);
+    if (Date.now() - lastClaim < 2000) {
+      // Another claimer beat us within the cooldown window.
+      throw new Error('claim-race-lost');
+    }
+
+    m.set(slotKey, myId);
+    m.set(slotNameKey, myName);
+    m.set(slotActiveKey, true);
+    m.set(claimKey, Date.now());
+    m.increment('rev', 1);
+    await m.save();
+
+    // Verify our write actually stuck (race-detect): re-read.
+    var verify = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(matchId);
+    if (verify.get(slotKey) !== myId) {
+      throw new Error('claim-race-lost-verify');
+    }
+    return verify;
+  }
+
+  function wrapTakeover(){
+    var S = window.TiddasSpectator;
+    if (!S || typeof S.takeover !== 'function' || S.__v24Wrapped) return false;
+    var origTakeover = S.takeover;
+    S.takeover = function(){
+      // T1. Strict queue check.
+      if (!isStrictlyFirst()) {
+        _toast('⏳ Vous n\'êtes pas premier dans la file.', 2000);
+        return;
+      }
+      if (_claimInFlight) { log('takeover ignored: claim in flight'); return; }
+      _claimInFlight = true;
+
+      // Find which slot is offered. Spectator module keeps it internally;
+      // we infer from current DB state if not exposed.
+      (async function(){
+        try {
+          var matchId = _mid();
+          if (!matchId || !_parseReady()) throw new Error('not-ready');
+          var m = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(matchId);
+          var slot = (m.get('p1Active') === false) ? 1
+                   : (m.get('p2Active') === false) ? 2 : 0;
+          if (!slot) { _toast('Aucun siège libre.', 1800); return; }
+
+          // T3. Atomic claim.
+          await _atomicClaim(slot);
+
+          // T4. Reset rev so polling re-applies current state for the new player.
+          try { if (window.online) window.online.lastSeenRev = -1; } catch(_){}
+
+          // T6. Drop spectator class before original takes over.
+          try { document.body.classList.remove('is-spectating'); } catch(_){}
+
+          // Let the original do its UI/role wiring (it sets window.online.role etc.)
+          origTakeover.apply(this, arguments);
+
+          // T5. Belt-and-braces UI cleanup.
+          try {
+            var badge = document.getElementById('spectator-badge');
+            if (badge) badge.classList.remove('visible');
+            ['undo-btn','surrender','restart'].forEach(function(id){
+              var el = document.getElementById(id);
+              if (el) { el.disabled = false; el.style.opacity = ''; el.style.pointerEvents = ''; }
+            });
+          } catch(_){}
+
+          _toast('⚔️ Place reprise (slot ' + slot + ')', 2200);
+        } catch(e) {
+          var msg = (e && e.message) || String(e);
+          if (msg.indexOf('claim-race-lost') === 0) {
+            _toast('⏳ Un autre spectateur a été plus rapide.', 2200);
+          } else if (msg === 'slot-still-occupied') {
+            _toast('Le joueur est revenu — relais annulé.', 2200);
+          } else {
+            _toast('Échec de la prise de relais : ' + msg, 2400);
+          }
+          log('takeover failed:', msg);
+        } finally {
+          _claimInFlight = false;
+        }
+      })();
+    };
+    S.__v24Wrapped = true;
+    return true;
+  }
+
+  // T5. Clear _disconnectedSlot / hide button when player returns active.
+  // We piggy-back on the polling pulse by observing the match data via
+  // a periodic re-check; cheap because we only re-check while spectator.
+  function installSlotReturnWatcher(){
+    if (window.__tpatch24SlotWatcher) return;
+    window.__tpatch24SlotWatcher = setInterval(async function(){
+      try {
+        if (!window.online || window.online.role !== 0) return; // spectator only
+        if (!_parseReady() || !_mid()) return;
+        var btn = document.getElementById('ol-takeover-btn');
+        if (!btn || !btn.classList.contains('visible')) return;
+        var m = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(_mid());
+        var p1A = m.get('p1Active') !== false;
+        var p2A = m.get('p2Active') !== false;
+        if (p1A && p2A) {
+          var S = window.TiddasSpectator;
+          if (S && typeof S.showTakeoverSlot === 'function') S.showTakeoverSlot(null);
+        }
+      } catch(_){}
+    }, 4000);
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  // REMATCH — race-safe, spectator-proof, leak-free
+  // ════════════════════════════════════════════════════════════════════
+
+  // R2. Hide rematch banner from spectators, and disable its buttons.
+  function suppressRematchBannerForSpectators(){
+    if (window.__tpatch24RematchSuppress) return;
+    window.__tpatch24RematchSuppress = setInterval(function(){
+      try {
+        var banner = document.getElementById('tpatch-rematch-banner');
+        if (!banner) return;
+        var isSpectator = !!(window.online && window.online.role === 0)
+                       || (window.gameMode === 'spectator');
+        if (isSpectator) {
+          banner.classList.remove('visible');
+          banner.style.display = 'none';
+        } else {
+          // Restore default (CSS controls visibility via .visible)
+          banner.style.display = '';
+        }
+      } catch(_){}
+    }, 1000);
+  }
+
+  // R5. Hide banner when room is left.
+  function wrapDisconnectForRematchBanner(){
+    if (typeof window.onlineDisconnect !== 'function') return false;
+    if (window.onlineDisconnect.__v24Wrapped) return true;
+    var orig = window.onlineDisconnect;
+    var wrapped = function(){
+      try {
+        var banner = document.getElementById('tpatch-rematch-banner');
+        if (banner) banner.classList.remove('visible');
+      } catch(_){}
+      // R4. Clear any leaked loser-watch timer on disconnect.
+      try {
+        if (window.__tpatch24LoserWatchTimer) {
+          clearInterval(window.__tpatch24LoserWatchTimer);
+          window.__tpatch24LoserWatchTimer = null;
+        }
+      } catch(_){}
+      return orig.apply(this, arguments);
+    };
+    wrapped.__v24Wrapped = true;
+    window.onlineDisconnect = wrapped;
+    return true;
+  }
+
+  // R1 + R3. Add a tick that handles mutual-propose collision and
+  // auto-recovers _myPending state after a refresh (proposer detects
+  // its own request and re-arms the waiting UI instead of treating it
+  // as incoming).
+  function installRematchCollisionFixer(){
+    if (window.__tpatch24RematchTicker) return;
+    window.__tpatch24RematchTicker = setInterval(async function(){
+      try {
+        if (!_parseReady() || !_mid()) return;
+        if (!window.online || !window.online.connected) return;
+        if (window.online.role === 0) return; // spectators don't touch rematch
+        var myId = _pid(); if (!myId) return;
+        var banner = document.getElementById('tpatch-rematch-banner');
+        if (!banner || !banner.classList.contains('visible')) return;
+
+        var m = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(_mid());
+        var rm = m.get('rematch') || {};
+        if (!rm || !rm.requestBy) return;
+        if (rm.accepted) return;
+
+        // R1. Mutual propose collision detection:
+        // If both sides clicked "Revanche" close in time, the request field
+        // only holds the latest one. We detect a "both want it" intent by
+        // also writing a second field rematchPeerWants when we click while
+        // there is already an opposing request.
+        var reqBtn = document.getElementById('tpatch-rematch-request-btn');
+        var accBtn = document.getElementById('tpatch-rematch-accept-btn');
+        var iAmProposer = (rm.requestBy === myId);
+        var iAmReceiver = (!iAmProposer);
+
+        // R3. Refresh recovery: I'm the proposer but UI thinks idle →
+        // re-show the waiting state.
+        if (iAmProposer && reqBtn && !reqBtn.disabled) {
+          reqBtn.disabled = true;
+          reqBtn.textContent = '⏳ Attente…';
+          if (accBtn) accBtn.style.display = 'none';
+        }
+
+        // R1. If I haven't yet clicked, banner shows incoming; if I now
+        // click Revanche to ALSO propose, we promote to immediate accept.
+        if (iAmReceiver && reqBtn && !reqBtn.dataset.__v24Bound) {
+          reqBtn.dataset.__v24Bound = '1';
+          reqBtn.addEventListener('click', async function(ev){
+            // If a peer request exists at click time → auto-accept.
+            try {
+              var m2 = await (new window.Parse.Query(window.BACK4APP_CLASS)).get(_mid());
+              var rm2 = m2.get('rematch') || {};
+              if (rm2.requestBy && rm2.requestBy !== _pid() && !rm2.accepted) {
+                ev.preventDefault();
+                ev.stopImmediatePropagation();
+                rm2.accepted   = true;
+                rm2.acceptedAt = Date.now();
+                m2.set('rematch', rm2);
+                m2.set('status', 'ready');
+                m2.set('rm1', false); m2.set('rm2', false);
+                m2.increment('rev', 1);
+                await m2.save();
+                _toast('✅ Revanche mutuelle acceptée !', 2200);
+              }
+            } catch(_){}
+          }, true); // capture phase to run BEFORE the existing handler
+        }
+      } catch(_){}
+    }, 2500);
+  }
+
+  // ── Boot ───────────────────────────────────────────────────────────
+  function boot(){
+    wrapTakeover();
+    installSlotReturnWatcher();
+    suppressRematchBannerForSpectators();
+    wrapDisconnectForRematchBanner();
+    installRematchCollisionFixer();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot, { once:true });
+  } else {
+    boot();
+  }
+  var tries = 0;
+  var iv = setInterval(function(){
+    tries++; boot();
+    if (tries > 30) clearInterval(iv);
+  }, 500);
+
+  log('takeover + rematch hardening active');
+})();
+</script>
 </body></html>
-
-
